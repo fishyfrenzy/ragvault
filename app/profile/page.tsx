@@ -200,10 +200,9 @@ export default function ProfilePage() {
           const totalItems = items.length
           const totalValue = items.reduce((sum, item) => sum + (Number(item.estimated_value) || 0), 0)
           
-          // Calculate categories (using brand as category)
+          // Calculate categories
           const categoryCounts = items.reduce((acc, item) => {
-            const brand = item.brand || 'Uncategorized'
-            acc[brand] = (acc[brand] || 0) + 1
+            acc[item.brand] = (acc[item.brand] || 0) + 1
             return acc
           }, {} as Record<string, number>)
 
@@ -214,8 +213,7 @@ export default function ProfilePage() {
 
           // Calculate conditions
           const conditionCounts = items.reduce((acc, item) => {
-            const condition = item.condition || 'Unknown'
-            acc[condition] = (acc[condition] || 0) + 1
+            acc[item.condition] = (acc[item.condition] || 0) + 1
             return acc
           }, {} as Record<string, number>)
 
