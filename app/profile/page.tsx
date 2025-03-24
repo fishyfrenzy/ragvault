@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { BarChart3, Edit, Heart, MessageSquare, Package, Settings, ShirtIcon, ShoppingBag, User, Mail, MapPin, Instagram, Twitter, Facebook, Link as LinkIcon } from "lucide-react"
+import { BarChart3, Edit, Heart, MessageSquare, Package, Settings, ShirtIcon, ShoppingBag, User, Mail, MapPin, Instagram, Twitter, Facebook, Link as LinkIcon, ArrowUp, ArrowDown, X } from "lucide-react"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface Profile {
   id: string
@@ -35,13 +36,52 @@ interface Profile {
   show_location: boolean
   show_website: boolean
   show_social: boolean
+  collection_overview_preferences: {
+    showTotalItems: boolean
+    showEstimatedValue: boolean
+    showLicensing: boolean
+    showTags: boolean
+    order: string[]
+  }
+  featured_shirts: number[]
+  featured_collections: number[]
 }
 
 interface CollectionStats {
   totalItems: number
   totalValue: number
-  categories: { name: string; count: number }[]
-  conditions: { name: string; count: number }[]
+  licensing: { name: string; count: number }[]
+  tags: { name: string; count: number }[]
+}
+
+interface TShirt {
+  id: number
+  name: string
+  brand: string
+  year: number
+  condition: string
+  size: string
+  tags: string[]
+  image: string | null
+  description: string | null
+  date_added: string
+  estimated_value: number
+  listing_status: string
+  price: number | null
+  user_id: string
+  collection_id: number | null
+  licensing: string
+}
+
+interface Collection {
+  id: number
+  name: string
+  description: string | null
+  user_id: string
+  created_at: string
+  updated_at: string
+  icon: string | null
+  color: string
 }
 
 export default function ProfilePage() {
@@ -56,6 +96,13 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editedProfile, setEditedProfile] = useState<Partial<Profile>>({})
+  const [featuredShirts, setFeaturedShirts] = useState<TShirt[]>([])
+  const [featuredCollections, setFeaturedCollections] = useState<Collection[]>([])
+  const [isCollectionOverviewSettingsOpen, setIsCollectionOverviewSettingsOpen] = useState(false)
+  const [isFeaturedShirtsOpen, setIsFeaturedShirtsOpen] = useState(false)
+  const [isFeaturedCollectionsOpen, setIsFeaturedCollectionsOpen] = useState(false)
+  const [tshirts, setTshirts] = useState<TShirt[]>([])
+  const [userCollections, setUserCollections] = useState<Collection[]>([])
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click()
@@ -173,8 +220,22 @@ export default function ProfilePage() {
           throw new Error('Profile not found')
         }
 
-        console.log('Profile data:', profileData)
-        setProfile(profileData)
+        // Add default values for collection_overview_preferences if they don't exist
+        const profileWithDefaults = {
+          ...profileData,
+          collection_overview_preferences: profileData.collection_overview_preferences || {
+            showTotalItems: true,
+            showEstimatedValue: true,
+            showLicensing: true,
+            showTags: true,
+            order: ['totalItems', 'estimatedValue', 'licensing', 'tags']
+          },
+          featured_shirts: profileData.featured_shirts || [],
+          featured_collections: profileData.featured_collections || []
+        }
+
+        console.log('Profile data:', profileWithDefaults)
+        setProfile(profileWithDefaults)
 
         // Try to fetch collection stats, but don't throw if the table doesn't exist
         try {
@@ -190,8 +251,8 @@ export default function ProfilePage() {
             setStats({
               totalItems: 0,
               totalValue: 0,
-              categories: [],
-              conditions: []
+              licensing: [],
+              tags: []
             })
             return
           }
@@ -200,33 +261,38 @@ export default function ProfilePage() {
           const totalItems = items.length
           const totalValue = items.reduce((sum, item) => sum + (Number(item.estimated_value) || 0), 0)
           
-          // Calculate categories
-          const categoryCounts = items.reduce((acc, item) => {
-            acc[item.brand] = (acc[item.brand] || 0) + 1
+          // Calculate licensing
+          const licensingCounts = items.reduce((acc, item) => {
+            acc[item.licensing] = (acc[item.licensing] || 0) + 1
             return acc
           }, {} as Record<string, number>)
 
-          const categories = Object.entries(categoryCounts).map(([name, count]) => ({
+          const licensing = Object.entries(licensingCounts).map(([name, count]) => ({
             name,
             count: count as number
           }))
 
-          // Calculate conditions
-          const conditionCounts = items.reduce((acc, item) => {
-            acc[item.condition] = (acc[item.condition] || 0) + 1
+          // Calculate tags
+          const tagCounts = items.reduce((acc, item) => {
+            item.tags.forEach((tag: string) => {
+              acc[tag] = (acc[tag] || 0) + 1
+            })
             return acc
           }, {} as Record<string, number>)
 
-          const conditions = Object.entries(conditionCounts).map(([name, count]) => ({
-            name,
-            count: count as number
-          }))
+          const tags = Object.entries(tagCounts)
+            .sort((a, b) => (b[1] as number) - (a[1] as number)) // Sort by count in descending order
+            .slice(0, 10) // Take top 10 tags
+            .map(([name, count]) => ({
+              name,
+              count: count as number
+            }))
 
           const statsData = {
             totalItems,
             totalValue,
-            categories,
-            conditions
+            licensing,
+            tags
           }
           console.log('Stats data:', statsData)
           setStats(statsData)
@@ -236,8 +302,8 @@ export default function ProfilePage() {
           setStats({
             totalItems: 0,
             totalValue: 0,
-            categories: [],
-            conditions: []
+            licensing: [],
+            tags: []
           })
         }
       } catch (err) {
@@ -297,6 +363,132 @@ export default function ProfilePage() {
       setError('Failed to update profile')
     }
   }
+
+  const fetchFeaturedItems = async () => {
+    if (!profile) return
+
+    try {
+      // Fetch featured shirts
+      if (profile.featured_shirts?.length > 0) {
+        const { data: shirts, error: shirtsError } = await supabase
+          .from('t_shirts')
+          .select('*')
+          .in('id', profile.featured_shirts)
+
+        if (!shirtsError && shirts) {
+          setFeaturedShirts(shirts)
+        }
+      }
+
+      // Fetch featured collections
+      if (profile.featured_collections?.length > 0) {
+        const { data: collections, error: collectionsError } = await supabase
+          .from('collections')
+          .select('*')
+          .in('id', profile.featured_collections)
+
+        if (!collectionsError && collections) {
+          setFeaturedCollections(collections)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching featured items:', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchFeaturedItems()
+  }, [profile])
+
+  const updateCollectionOverviewPreferences = async (preferences: Profile['collection_overview_preferences']) => {
+    if (!profile) return
+
+    try {
+      console.log('Updating preferences with:', preferences)
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ collection_overview_preferences: preferences })
+        .eq('id', profile.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error updating preferences:', error)
+        throw new Error(`Failed to update preferences: ${error.message}`)
+      }
+
+      if (!data) {
+        throw new Error('No data returned after updating preferences')
+      }
+
+      console.log('Successfully updated preferences:', data)
+      setProfile(prev => prev ? { ...prev, collection_overview_preferences: preferences } : null)
+      toast.success('Collection overview preferences updated successfully')
+    } catch (error) {
+      console.error('Error updating preferences:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to update preferences')
+    }
+  }
+
+  const updateFeaturedItems = async (type: 'shirts' | 'collections', ids: number[]) => {
+    if (!profile) return
+
+    try {
+      console.log(`Updating featured ${type} with ids:`, ids)
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ [`featured_${type}`]: ids })
+        .eq('id', profile.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error(`Error updating featured ${type}:`, error)
+        throw new Error(`Failed to update featured ${type}: ${error.message}`)
+      }
+
+      if (!data) {
+        throw new Error(`No data returned after updating featured ${type}`)
+      }
+
+      console.log(`Successfully updated featured ${type}:`, data)
+      setProfile(prev => prev ? { ...prev, [`featured_${type}`]: ids } : null)
+      toast.success(`Featured ${type} updated successfully`)
+    } catch (error) {
+      console.error(`Error updating featured ${type}:`, error)
+      toast.error(error instanceof Error ? error.message : `Failed to update featured ${type}`)
+    }
+  }
+
+  useEffect(() => {
+    const fetchTshirtsAndCollections = async () => {
+      if (!profile) return
+
+      // Fetch t-shirts
+      const { data: shirts, error: shirtsError } = await supabase
+        .from('t_shirts')
+        .select('*')
+        .eq('user_id', profile.id)
+
+      if (!shirtsError && shirts) {
+        setTshirts(shirts)
+      }
+
+      // Fetch collections
+      const { data: collections, error: collectionsError } = await supabase
+        .from('collections')
+        .select('*')
+        .eq('user_id', profile.id)
+
+      if (!collectionsError && collections) {
+        setUserCollections(collections)
+      }
+    }
+
+    fetchTshirtsAndCollections()
+  }, [profile])
 
   if (isLoading) {
     return (
@@ -507,31 +699,33 @@ export default function ProfilePage() {
                         <p className="text-2xl font-bold mt-1">{stats.totalItems}</p>
                       </div>
                       <div className="rounded-lg border p-4">
-                        <h4 className="text-sm font-medium text-muted-foreground">Total Value</h4>
+                        <h4 className="text-sm font-medium text-muted-foreground">Estimated Value</h4>
                         <p className="text-2xl font-bold mt-1">${stats.totalValue.toLocaleString()}</p>
                       </div>
                     </div>
 
                     <div className="rounded-lg border p-4">
-                      <h4 className="text-sm font-medium text-muted-foreground mb-3">Categories</h4>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-3">Licensing</h4>
                       <div className="flex flex-wrap gap-2">
-                        {stats.categories.map((category) => (
-                          <Badge key={category.name} variant="secondary" className="text-sm">
-                            {category.name} ({category.count})
+                        {stats.licensing.map((licensing) => (
+                          <Badge key={licensing.name} variant="secondary" className="text-sm">
+                            {licensing.name} ({licensing.count})
                           </Badge>
                         ))}
                       </div>
                     </div>
                   </div>
 
-                  <div className="rounded-lg border p-4">
-                    <h4 className="text-sm font-medium text-muted-foreground mb-3">Conditions</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {stats.conditions.map((condition) => (
-                        <Badge key={condition.name} variant="secondary" className="text-sm">
-                          {condition.name} ({condition.count})
-                        </Badge>
-                      ))}
+                  <div className="space-y-6">
+                    <div className="rounded-lg border p-4">
+                      <h4 className="text-sm font-medium text-muted-foreground mb-3">Top Tags</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {stats.tags.map((tag) => (
+                          <Badge key={tag.name} variant="secondary" className="text-sm">
+                            {tag.name} ({tag.count})
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -664,8 +858,345 @@ export default function ProfilePage() {
                   )}
                 </div>
               )}
+
+              {stats && (
+                <div className="mt-8">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Collection Overview</h3>
+                    <Button variant="outline" size="sm" onClick={() => setIsCollectionOverviewSettingsOpen(true)}>
+                      <Settings className="h-4 w-4 mr-2" /> Customize
+                    </Button>
+                  </div>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {profile.collection_overview_preferences.order.map((item) => {
+                      switch (item) {
+                        case 'totalItems':
+                          return profile.collection_overview_preferences.showTotalItems && (
+                            <div key="totalItems" className="rounded-lg border p-4">
+                              <h4 className="text-sm font-medium text-muted-foreground">Total Items</h4>
+                              <p className="text-2xl font-bold mt-1">{stats.totalItems}</p>
+                            </div>
+                          )
+                        case 'estimatedValue':
+                          return profile.collection_overview_preferences.showEstimatedValue && (
+                            <div key="estimatedValue" className="rounded-lg border p-4">
+                              <h4 className="text-sm font-medium text-muted-foreground">Estimated Value</h4>
+                              <p className="text-2xl font-bold mt-1">${stats.totalValue.toLocaleString()}</p>
+                            </div>
+                          )
+                        case 'licensing':
+                          return profile.collection_overview_preferences.showLicensing && (
+                            <div key="licensing" className="rounded-lg border p-4">
+                              <h4 className="text-sm font-medium text-muted-foreground mb-3">Licensing</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {stats.licensing.map((licensing) => (
+                                  <Badge key={licensing.name} variant="secondary" className="text-sm">
+                                    {licensing.name} ({licensing.count})
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        case 'tags':
+                          return profile.collection_overview_preferences.showTags && (
+                            <div key="tags" className="rounded-lg border p-4">
+                              <h4 className="text-sm font-medium text-muted-foreground mb-3">Top Tags</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {stats.tags.map((tag) => (
+                                  <Badge key={tag.name} variant="secondary" className="text-sm">
+                                    {tag.name} ({tag.count})
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        default:
+                          return null
+                      }
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Featured Shirts</h3>
+                  <Button variant="outline" size="sm" onClick={() => setIsFeaturedShirtsOpen(true)}>
+                    <Edit className="h-4 w-4 mr-2" /> Edit
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {featuredShirts.map((shirt) => (
+                    <Card key={shirt.id} className="overflow-hidden">
+                      <div className="relative aspect-square">
+                        <Image
+                          src={shirt.image || "/placeholder.svg"}
+                          alt={shirt.name}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <CardContent className="p-4">
+                        <h4 className="font-medium truncate">{shirt.name}</h4>
+                        <p className="text-sm text-muted-foreground">{shirt.licensing} • {shirt.year}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Featured Collections</h3>
+                  <Button variant="outline" size="sm" onClick={() => setIsFeaturedCollectionsOpen(true)}>
+                    <Edit className="h-4 w-4 mr-2" /> Edit
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {featuredCollections.map((collection) => (
+                    <Card key={collection.id} className="overflow-hidden">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          {collection.icon ? (
+                            <span className="text-2xl">{collection.icon}</span>
+                          ) : (
+                            <div className={`w-6 h-6 rounded-full ${collection.color}`}></div>
+                          )}
+                          <h4 className="font-medium">{collection.name}</h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{collection.description}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
+
+          {/* Collection Overview Settings Dialog */}
+          <Dialog open={isCollectionOverviewSettingsOpen} onOpenChange={setIsCollectionOverviewSettingsOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Customize Collection Overview</DialogTitle>
+                <DialogDescription>Choose what to display and in what order</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Display Options</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span>Total Items</span>
+                      <Switch
+                        checked={profile.collection_overview_preferences.showTotalItems}
+                        onCheckedChange={(checked) => {
+                          const newPrefs = {
+                            ...profile.collection_overview_preferences,
+                            showTotalItems: checked
+                          }
+                          updateCollectionOverviewPreferences(newPrefs)
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Estimated Value</span>
+                      <Switch
+                        checked={profile.collection_overview_preferences.showEstimatedValue}
+                        onCheckedChange={(checked) => {
+                          const newPrefs = {
+                            ...profile.collection_overview_preferences,
+                            showEstimatedValue: checked
+                          }
+                          updateCollectionOverviewPreferences(newPrefs)
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Licensing</span>
+                      <Switch
+                        checked={profile.collection_overview_preferences.showLicensing}
+                        onCheckedChange={(checked) => {
+                          const newPrefs = {
+                            ...profile.collection_overview_preferences,
+                            showLicensing: checked
+                          }
+                          updateCollectionOverviewPreferences(newPrefs)
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Tags</span>
+                      <Switch
+                        checked={profile.collection_overview_preferences.showTags}
+                        onCheckedChange={(checked) => {
+                          const newPrefs = {
+                            ...profile.collection_overview_preferences,
+                            showTags: checked
+                          }
+                          updateCollectionOverviewPreferences(newPrefs)
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Display Order</Label>
+                  <div className="space-y-2">
+                    {profile.collection_overview_preferences.order.map((item, index) => (
+                      <div key={item} className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const newOrder = [...profile.collection_overview_preferences.order]
+                            if (index > 0) {
+                              [newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]]
+                              updateCollectionOverviewPreferences({
+                                ...profile.collection_overview_preferences,
+                                order: newOrder
+                              })
+                            }
+                          }}
+                          disabled={index === 0}
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const newOrder = [...profile.collection_overview_preferences.order]
+                            if (index < newOrder.length - 1) {
+                              [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
+                              updateCollectionOverviewPreferences({
+                                ...profile.collection_overview_preferences,
+                                order: newOrder
+                              })
+                            }
+                          }}
+                          disabled={index === profile.collection_overview_preferences.order.length - 1}
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
+                        <span className="flex-1">{item}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const newOrder = profile.collection_overview_preferences.order.filter(i => i !== item)
+                            updateCollectionOverviewPreferences({
+                              ...profile.collection_overview_preferences,
+                              order: newOrder
+                            })
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        const newOrder = [...profile.collection_overview_preferences.order]
+                        const availableItems = ['totalItems', 'estimatedValue', 'licensing', 'tags']
+                          .filter(item => !newOrder.includes(item))
+                        if (availableItems.length > 0) {
+                          newOrder.push(availableItems[0])
+                          updateCollectionOverviewPreferences({
+                            ...profile.collection_overview_preferences,
+                            order: newOrder
+                          })
+                        }
+                      }}
+                    >
+                      Add Item
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Featured Shirts Dialog */}
+          <Dialog open={isFeaturedShirtsOpen} onOpenChange={setIsFeaturedShirtsOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Featured Shirts</DialogTitle>
+                <DialogDescription>Select shirts to showcase on your profile</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {tshirts.map((shirt) => (
+                    <Card
+                      key={shirt.id}
+                      className={`overflow-hidden cursor-pointer ${
+                        profile.featured_shirts.includes(shirt.id) ? 'ring-2 ring-primary' : ''
+                      }`}
+                      onClick={() => {
+                        const newFeaturedShirts = profile.featured_shirts.includes(shirt.id)
+                          ? profile.featured_shirts.filter(id => id !== shirt.id)
+                          : [...profile.featured_shirts, shirt.id]
+                        updateFeaturedItems('shirts', newFeaturedShirts)
+                      }}
+                    >
+                      <div className="relative aspect-square">
+                        <Image
+                          src={shirt.image || "/placeholder.svg"}
+                          alt={shirt.name}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <CardContent className="p-4">
+                        <h4 className="font-medium truncate">{shirt.name}</h4>
+                        <p className="text-sm text-muted-foreground">{shirt.licensing} • {shirt.year}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Featured Collections Dialog */}
+          <Dialog open={isFeaturedCollectionsOpen} onOpenChange={setIsFeaturedCollectionsOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Featured Collections</DialogTitle>
+                <DialogDescription>Select collections to showcase on your profile</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {userCollections.map((collection) => (
+                    <Card
+                      key={collection.id}
+                      className={`overflow-hidden cursor-pointer ${
+                        profile.featured_collections.includes(collection.id) ? 'ring-2 ring-primary' : ''
+                      }`}
+                      onClick={() => {
+                        const newFeaturedCollections = profile.featured_collections.includes(collection.id)
+                          ? profile.featured_collections.filter(id => id !== collection.id)
+                          : [...profile.featured_collections, collection.id]
+                        updateFeaturedItems('collections', newFeaturedCollections)
+                      }}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          {collection.icon ? (
+                            <span className="text-2xl">{collection.icon}</span>
+                          ) : (
+                            <div className={`w-6 h-6 rounded-full ${collection.color}`}></div>
+                          )}
+                          <h4 className="font-medium">{collection.name}</h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{collection.description}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
       </Tabs>
     </div>

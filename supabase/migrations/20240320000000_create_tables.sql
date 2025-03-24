@@ -28,6 +28,35 @@ CREATE TABLE t_shirts (
     collection_id BIGINT REFERENCES collections(id) ON DELETE SET NULL
 );
 
+CREATE TABLE profiles (
+    id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+    username TEXT UNIQUE,
+    email TEXT,
+    full_name TEXT,
+    avatar_url TEXT,
+    bio TEXT,
+    location TEXT,
+    website TEXT,
+    instagram TEXT,
+    twitter TEXT,
+    facebook TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    show_email BOOLEAN DEFAULT false,
+    show_location BOOLEAN DEFAULT false,
+    show_website BOOLEAN DEFAULT false,
+    show_social BOOLEAN DEFAULT false,
+    collection_overview_preferences JSONB DEFAULT '{
+        "showTotalItems": true,
+        "showEstimatedValue": true,
+        "showLicensing": true,
+        "showTags": true,
+        "order": ["totalItems", "estimatedValue", "licensing", "tags"]
+    }'::jsonb,
+    featured_shirts BIGINT[] DEFAULT '{}'::BIGINT[],
+    featured_collections BIGINT[] DEFAULT '{}'::BIGINT[]
+);
+
 -- Create indexes
 CREATE INDEX t_shirts_user_id_idx ON t_shirts(user_id);
 CREATE INDEX t_shirts_collection_id_idx ON t_shirts(collection_id);
