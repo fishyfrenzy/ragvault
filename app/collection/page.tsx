@@ -33,6 +33,13 @@ import {
   UserPlus,
   Users,
   Share,
+  FolderPlus,
+  FolderOpen,
+  Pencil,
+  Layers,
+  Folder,
+  Trash2,
+  FolderIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,6 +52,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu"
 import {
   Dialog,
@@ -83,12 +93,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { CldImage } from "next-cloudinary"
+import {
+  Command,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command"
 
 // Types
 interface TShirt {
   id: number
   name: string
-  licensing: string  // Changed to lowercase 'licensing' to match database column
+  licensing: string
   year: number
   condition: string
   size: string
@@ -100,7 +116,24 @@ interface TShirt {
   listing_status: string
   price: number | null
   user_id: string
-  collection_id: number | null
+  collections: Collection[]
+}
+
+// Add this type definition after your other types
+type Collection = {
+  id: number
+  name: string
+  color: string
+  user_id: string
+  tags?: string[]
+  is_default?: boolean
+}
+
+// Add this type for the junction table
+type TShirtCollection = {
+  t_shirt_id: number
+  collection_id: number
+  added_at: string
 }
 
 // Listing Status Badge Component
@@ -200,14 +233,12 @@ const ListingStatusBadge = ({
             </button>
             <button
               className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${currentStatus === "Public" ? "bg-muted/50" : ""}`}
-              onClick={() => handleStatusChange("Public")}
-            >
+              onClick={() => handleStatusChange("Public")}>
               Not For Sale
             </button>
             <button
               className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${currentStatus === "Private" ? "bg-muted/50" : ""}`}
-              onClick={() => handleStatusChange("Private")}
-            >
+              onClick={() => handleStatusChange("Private")}>
               Private
             </button>
           </div>
@@ -246,15 +277,6 @@ const ListingStatusBadge = ({
   )
 }
 
-// Update the Collection type to include icon
-type Collection = {
-  id: number
-  name: string
-  tags: string[]
-  color: string
-  icon?: string
-}
-
 // Available table columns definition
 const availableColumns = [
   { id: "image", name: "Image", sortable: false },
@@ -268,6 +290,11 @@ const availableColumns = [
   { id: "date_added", name: "Date Added", sortable: true },
   { id: "estimated_value", name: "Value", sortable: true },
   { id: "actions", name: "Actions", sortable: false },
+  {
+    id: "collection",
+    name: "Collection",
+    sortable: true,
+  },
 ]
 
 type SortDirection = "asc" | "desc" | null
@@ -466,12 +493,10 @@ export default function CollectionPage() {
   const [selectedCollection, setSelectedCollection] = useState<string>("all")
   const [userCollections, setUserCollections] = useState<Collection[]>([])
   const [isNewCollectionOpen, setIsNewCollectionOpen] = useState(false)
-  const [newCollectionName, setNewCollectionName] = useState("")
-  const [newCollectionTags, setNewCollectionTags] = useState<string[]>([])
-  const [newCollectionColor, setNewCollectionColor] = useState("bg-blue-500")
   const [isAddItemOpen, setIsAddItemOpen] = useState(false)
   const [addMode, setAddMode] = useState<"quick" | "detailed">("quick")
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   
   // Updated formItems type to include image properties
   type FormItem = {
@@ -544,21 +569,20 @@ export default function CollectionPage() {
   // Add this near the top of the component, after other state declarations
   const [formKey, setFormKey] = useState(0)
 
-  // Fetch t-shirts and collections on component mount
+  // Add these state variables after your other useState declarations
+  const [newCollectionTags, setNewCollectionTags] = useState<string[]>([])
+  const [newCollectionName, setNewCollectionName] = useState("")
+  const [newCollectionColor, setNewCollectionColor] = useState("#000000")
+  const [isChangeCollectionOpen, setIsChangeCollectionOpen] = useState(false)
+  const [selectedTshirt, setSelectedTshirt] = useState<TShirt | null>(null)
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>("none")
+
+  // Initialize collections
   useEffect(() => {
     const fetchData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) throw new Error('Not authenticated')
-
-        // Fetch t-shirts
-        const { data: tshirtsData, error: tshirtsError } = await supabase
-          .from('t_shirts')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('date_added', { ascending: false })
-
-        if (tshirtsError) throw tshirtsError
 
         // Fetch collections
         const { data: collectionsData, error: collectionsError } = await supabase
@@ -567,9 +591,30 @@ export default function CollectionPage() {
           .eq('user_id', user.id)
 
         if (collectionsError) throw collectionsError
-
-        setTshirts(tshirtsData || [])
+        
         setUserCollections(collectionsData || [])
+
+        // Fetch t-shirts with their collections
+        const { data: tshirtsData, error: tshirtsError } = await supabase
+          .from('t_shirts')
+          .select(`
+            *,
+            collections:t_shirt_collections(
+              collection:collections(*)
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('date_added', { ascending: false })
+
+        if (tshirtsError) throw tshirtsError
+
+        // Transform the data to match our TShirt type
+        const transformedTshirts = tshirtsData?.map(shirt => ({
+          ...shirt,
+          collections: shirt.collections.map(c => c.collection)
+        })) || [];
+
+        setTshirts(transformedTshirts);
       } catch (error) {
         console.error('Error fetching data:', error)
         toast.error('Failed to load your collection')
@@ -579,68 +624,7 @@ export default function CollectionPage() {
     }
 
     fetchData()
-
-    // Set up real-time subscription for t-shirts
-    const tshirtsChannel = supabase
-      .channel('t_shirts_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 't_shirts'
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setTshirts(prev => [payload.new as TShirt, ...prev])
-          } else if (payload.eventType === 'UPDATE') {
-            setTshirts(prev => 
-              prev.map(shirt => 
-                shirt.id === payload.new.id ? payload.new as TShirt : shirt
-              )
-            )
-          } else if (payload.eventType === 'DELETE') {
-            setTshirts(prev => 
-              prev.filter(shirt => shirt.id !== payload.old.id)
-            )
-          }
-        }
-      )
-      .subscribe()
-
-    // Set up real-time subscription for collections
-    const collectionsChannel = supabase
-      .channel('collections_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'collections'
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setUserCollections(prev => [...prev, payload.new as Collection])
-          } else if (payload.eventType === 'UPDATE') {
-            setUserCollections(prev => 
-              prev.map(collection => 
-                collection.id === payload.new.id ? payload.new as Collection : collection
-              )
-            )
-          } else if (payload.eventType === 'DELETE') {
-            setUserCollections(prev => 
-              prev.filter(collection => collection.id !== payload.old.id)
-            )
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(tshirtsChannel)
-      supabase.removeChannel(collectionsChannel)
-    }
-  }, [supabase])
+  }, [])
 
   // Get unique values for filters
   const uniqueBrands = Array.from(new Set(tshirts.map((shirt) => shirt.licensing)))  // Changed to use licensing property
@@ -653,35 +637,24 @@ export default function CollectionPage() {
 
   // Filter t-shirts based on search query and selected collection
   const filteredTshirts = useMemo(() => {
-    return tshirts.filter((shirt) => {
-      // Search filter
-      const matchesSearch =
-        shirt.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        shirt.licensing.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        shirt.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        shirt.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-
-      // Collection filter
-      let matchesCollection = true
-      if (selectedCollection !== "all") {
-        const collection = [...recommendedCollections, ...userCollections].find(
-          (c) => c.id.toString() === selectedCollection,
-        )
-        if (collection) {
-          matchesCollection = collection.tags.some((tag) => shirt.tags.includes(tag))
-        }
-      }
-
-      // Additional filters
-      const matchesLicensing = activeFilters.licensing.length === 0 || activeFilters.licensing.includes(shirt.licensing)  // Changed to use licensing property
-      const matchesYear = activeFilters.years.length === 0 || activeFilters.years.includes(shirt.year.toString())
-      const matchesCondition =
-        activeFilters.conditions.length === 0 || activeFilters.conditions.includes(shirt.condition)
-      const matchesSize = activeFilters.sizes.length === 0 || activeFilters.sizes.includes(shirt.size)
-
-      return matchesSearch && matchesCollection && matchesLicensing && matchesYear && matchesCondition && matchesSize
-    })
-  }, [searchQuery, selectedCollection, userCollections, activeFilters])
+    let filtered = [...tshirts];
+    
+    // Filter by collection
+    if (selectedCollection !== "all") {
+      filtered = filtered.filter(
+        (tshirt) => tshirt.collections.some(collection => collection.id.toString() === selectedCollection)
+      );
+    }
+    
+    // Fix any other filters to use "tshirt" instead of "shirt"
+    if (searchQuery) {
+      filtered = filtered.filter((tshirt) => 
+        tshirt.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  }, [tshirts, selectedCollection, searchQuery, /* other dependencies */]);
 
   // Sort the filtered t-shirts
   const sortedTshirts = useMemo(() => {
@@ -750,35 +723,50 @@ export default function CollectionPage() {
 
   // Handle creating a new collection
   const handleCreateCollection = async () => {
-    if (!newCollectionName.trim()) return
-
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const newCollection = {
-        name: newCollectionName,
-        tags: newCollectionTags,
-        color: newCollectionColor,
-        user_id: user.id
+      // Validate collection name
+      if (!newCollectionName.trim()) {
+        toast.error('Please enter a collection name')
+        return
       }
 
-      const { data, error } = await supabase
+      // Prevent naming conflicts with "All Shirts" view
+      if (newCollectionName.trim().toLowerCase() === "all shirts") {
+        toast.error('Cannot create a collection named "All Shirts"')
+        return
+      }
+
+      console.log("Creating collection:", {
+        name: newCollectionName.trim(),
+        user_id: user.id
+      })
+
+      const { data: newCollection, error } = await supabase
         .from('collections')
-        .insert(newCollection)
+        .insert({
+          name: newCollectionName.trim(),
+          user_id: user.id
+        })
         .select()
         .single()
 
       if (error) throw error
 
-      setUserCollections(prev => [...prev, data])
-      setNewCollectionName("")
-      setNewCollectionTags([])
+      // Update local state
+      setUserCollections(prev => [...prev, newCollection])
+      setNewCollectionName('')
       setIsNewCollectionOpen(false)
-      toast.success("Collection created successfully")
+      toast.success('Collection created successfully')
     } catch (error) {
       console.error('Error creating collection:', error)
-      toast.error('Failed to create collection')
+      if (error instanceof Error) {
+        toast.error(`Error creating collection: ${error.message}`)
+      } else {
+        toast.error('Failed to create collection')
+      }
     }
   }
 
@@ -1054,12 +1042,9 @@ export default function CollectionPage() {
 
       const form = e.target as HTMLFormElement;
       
-      // Filter out any empty items (where no name was entered)
+      // Filter out any empty items
       const filteredItems = formItems.filter((item, index) => {
-        // For all items except the last one, they must have values
         if (index < formItems.length - 1) return true;
-        
-        // For the last item, only include if it has a name
         const nameInput = document.getElementById(`item-${item.id}-name`) as HTMLInputElement;
         return nameInput && nameInput.value.trim() !== '';
       });
@@ -1073,125 +1058,77 @@ export default function CollectionPage() {
       // Process each item
       for (const item of filteredItems) {
         const nameInput = document.getElementById(`item-${item.id}-name`) as HTMLInputElement;
-        const statusSelect = document.getElementById(`item-${item.id}-listing-status`) as HTMLSelectElement;
-        const licensingInput = document.getElementById(`item-${item.id}-licensing`) as HTMLInputElement;
-        const yearInput = document.getElementById(`item-${item.id}-year`) as HTMLInputElement;
-        const conditionSelect = document.getElementById(`item-${item.id}-condition`) as HTMLSelectElement;
-        const sizeSelect = document.getElementById(`item-${item.id}-size`) as HTMLSelectElement;
-        const valueInput = document.getElementById(`item-${item.id}-value`) as HTMLInputElement;
-        const tagsInput = document.getElementById(`item-${item.id}-tags`) as HTMLInputElement;
+        const name = nameInput?.value.trim();
         
-        // Required fields
-        const name = nameInput.value;
-        const listing_status = statusSelect.value;
-        
-        // Optional fields with null checks
-        const brand = licensingInput?.value || '';
-        const year = yearInput?.value ? parseInt(yearInput.value) : null;
-        const condition = conditionSelect?.value || '';
-        const size = sizeSelect?.value || '';
-        const estimated_value = valueInput?.value ? parseFloat(valueInput.value) : null;
-        const tags = tagsInput?.value ? tagsInput.value.split(',').map(tag => tag.trim()) : [];
-        
-        // Handle price for "For Sale" status
-        let price = null;
-        if (listing_status === "For Sale") {
-          const priceInput = prompt(`Enter sale price for "${name}" ($):`);
-          if (!priceInput) {
-            continue; // Skip this item if no price entered
-          }
-          price = parseFloat(priceInput);
-          if (isNaN(price) || price < 0) {
-            toast.error(`Please enter a valid price for "${name}"`);
-            continue; // Skip this item if invalid price
-          }
-        }
+        if (!name) continue;
 
-        // Upload image if available
-        let imageUrl = "";
-        if (item.imageFile) {
-          // Using the imageUrl from the updated ImageUploader component
-          // which has already uploaded the image to Cloudinary
-          imageUrl = item.imageUrl || "";
-        }
-
-        // Log the data being sent to help diagnose issues
-        console.log('Sending item data to Supabase:', {
-          name,
-          licensing: brand, // Changed to match database column name
-          year,
-          condition,
-          size,
-          description: "",
-          estimated_value,
-          tags,
-          listing_status,
-          price,
-          user_id: user.id,
-          image: imageUrl,
-        });
-
-        // Create new item with necessary fields
         const newItem = {
           name,
-          licensing: brand, // Changed to match database column name
-          year,
-          condition,
-          size,
-          description: "",
-          estimated_value,
-          tags,
-          listing_status,
-          price,
+          licensing: '',
+          year: new Date().getFullYear(),
+          condition: 'Good',
+          size: 'L',
+          description: '',
+          estimated_value: 0,
+          tags: [],
+          listing_status: 'Public',
+          price: null,
           user_id: user.id,
-          date_added: new Date().toISOString().split('T')[0], // Add today's date in YYYY-MM-DD format
-          image: imageUrl || "https://images.unsplash.com/photo-1576566588028-4147f3842f27?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=764&q=80" // Use uploaded image or default
+          date_added: new Date().toISOString(),
+          image: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=764&q=80"
         };
 
-        const { error: insertError } = await supabase
+        // Insert the t-shirt
+        const { data: tshirtData, error: insertError } = await supabase
           .from('t_shirts')
-          .insert(newItem);
+          .insert(newItem)
+          .select()
+          .single();
 
         if (insertError) {
           console.error('Error adding item:', insertError);
           toast.error(`Error adding "${name}": ${insertError.message}`);
-          throw new Error(insertError.message || 'Failed to add item to database');
+          continue;
         }
+
+        // If a collection is selected (not "all"), add to that collection
+        if (selectedCollection !== "all") {
+          const { error: collectionError } = await supabase
+            .from('t_shirt_collections')
+            .insert({
+              t_shirt_id: tshirtData.id,
+              collection_id: parseInt(selectedCollection)
+            });
+
+          if (collectionError) {
+            console.error('Error adding to collection:', collectionError);
+            toast.error(`Added "${name}" but failed to add to collection`);
+            continue;
+          }
+        }
+
+        // Update local state
+        const newTshirt = {
+          ...tshirtData,
+          collections: selectedCollection !== "all" 
+            ? [userCollections.find(c => c.id.toString() === selectedCollection)!]
+            : []
+        };
+        
+        setTshirts(prev => [newTshirt, ...prev]);
       }
 
-      // Success message and close dialog
-      toast.success(`Added ${filteredItems.length} item${filteredItems.length > 1 ? 's' : ''} successfully`);
-      setIsQuickAddOpen(false);
-      
-      // Reload data by refreshing the page
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
-      
       // Reset form
-      form.reset();
-      setOptionalFields({
-        licensing: false,
-        year: false,
-        condition: false,
-        size: false,
-        value: false,
-        tags: false,
-        description: false,
-        listing_status: false,
-        price: false
-      });
-      // Clear image state
-      setItemImage("");
-      setItemImageFile(null);
+      setFormItems([{ id: Date.now().toString(), values: {}, imageFile: null, imageUrl: "" }]);
+      setFormKey(prev => prev + 1);
+      setIsQuickAddOpen(false);
+      toast.success(`Added ${filteredItems.length} item${filteredItems.length > 1 ? 's' : ''} successfully`);
     } catch (error) {
       console.error('Error adding items:', error);
       if (error instanceof Error) {
         toast.error(`Error adding items: ${error.message}`);
-      } else if (typeof error === 'object' && error !== null) {
-        toast.error(`Error adding items: ${JSON.stringify(error)}`);
       } else {
-        toast.error("Failed to add items: Unknown error");
+        toast.error('Failed to add items');
       }
     } finally {
       setIsLoading(false);
@@ -1226,7 +1163,7 @@ export default function CollectionPage() {
       const name = formElements['item-name'].value;
 
       // Optional fields with null checks
-      const brand = optionalFields.licensing ? formElements['item-licensing']?.value || '' : '';
+      const licensing = optionalFields.licensing ? formElements['item-licensing']?.value || '' : '';
       const year = optionalFields.year ? parseInt(formElements['item-year']?.value || '0') : null;
       const condition = optionalFields.condition ? formElements['item-condition']?.value || '' : '';
       const size = optionalFields.size ? formElements['item-size']?.value || '' : '';
@@ -1235,24 +1172,11 @@ export default function CollectionPage() {
       const tags = optionalFields.tags ? (formElements['item-tags']?.value || '').split(",").map((tag: string) => tag.trim()) : [];
       const listing_status = optionalFields.listing_status ? formElements['item-listing-status']?.value || 'Public' : 'Public';
       const price = optionalFields.price ? parseFloat(formElements['item-price']?.value || '0') : null;
-      
-      // Upload image if available
-      let imageUrl = "";
-      if (itemImage && itemImageFile) {
-        imageUrl = await uploadImageToSupabase(itemImageFile, user.id);
-      }
-      
-      // Log the data being sent
-      console.log('Adding item with data:', {
-        name, brand, year, condition, size, description, 
-        estimated_value, tags, listing_status, price,
-        image: imageUrl
-      });
 
       // Create the new item object
       const newItem = {
         name,
-        licensing: brand, // Changed to match database column name
+        licensing,
         year,
         condition,
         size,
@@ -1262,26 +1186,46 @@ export default function CollectionPage() {
         listing_status,
         price,
         user_id: user.id,
-        date_added: new Date().toISOString().split('T')[0], // Add today's date in YYYY-MM-DD format
-        image: imageUrl || "https://images.unsplash.com/photo-1576566588028-4147f3842f27?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=764&q=80" // Use uploaded image or default
+        date_added: new Date().toISOString(),
+        image: itemImage || "https://images.unsplash.com/photo-1576566588028-4147f3842f27?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=764&q=80"
       };
 
-      const { data, error: insertError } = await supabase
+      // Insert the t-shirt
+      const { data: tshirtData, error: insertError } = await supabase
         .from('t_shirts')
         .insert(newItem)
         .select()
         .single();
 
-      if (insertError) {
-        console.error('Error adding item:', insertError);
-        throw insertError;
+      if (insertError) throw insertError;
+
+      // If a collection is selected (not "all"), add to that collection
+      if (selectedCollection !== "all") {
+        const { error: collectionError } = await supabase
+          .from('t_shirt_collections')
+          .insert({
+            t_shirt_id: tshirtData.id,
+            collection_id: parseInt(selectedCollection)
+          });
+
+        if (collectionError) {
+          console.error('Error adding to collection:', collectionError);
+          toast.error(`Added "${name}" but failed to add to collection`);
+        }
       }
 
-      // Update the UI with the new item
-      setTshirts(prev => [...prev, data]);
-      setIsAddItemOpen(false);
-      toast.success("Item added successfully");
+      // Update local state
+      const newTshirt = {
+        ...tshirtData,
+        collections: selectedCollection !== "all" 
+          ? [userCollections.find(c => c.id.toString() === selectedCollection)!]
+          : []
+      };
       
+      setTshirts(prev => [newTshirt, ...prev]);
+      setIsAddItemOpen(false);
+      toast.success('Item added successfully');
+
       // Reset form
       form.reset();
       setOptionalFields({
@@ -1302,95 +1246,176 @@ export default function CollectionPage() {
       console.error('Error adding item:', error);
       if (error instanceof Error) {
         toast.error(`Error adding item: ${error.message}`);
-      } else if (typeof error === 'object' && error !== null) {
-        toast.error(`Error adding item: ${JSON.stringify(error)}`);
       } else {
-        toast.error("Failed to add item: Unknown error");
+        toast.error('Failed to add item');
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Add image upload function
-  const uploadImageToSupabase = async (imageFile: File, userId: string): Promise<string> => {
-    if (!imageFile || imageFile.size === 0) {
-      console.log("No image file provided or file size is 0");
-      return ""; // Return empty string if no file
-    }
-    
-    console.log("Starting upload to Supabase:", imageFile.name, imageFile.size, imageFile.type);
+  // Add these state variables
+  const [itemImage, setItemImage] = useState<string>("");
+  const [itemImageFile, setItemImageFile] = useState<File | null>(null);
+
+  // Handle collection change
+  const handleCollectionChange = async (collectionId: string) => {
+    if (!selectedTshirt) return;
     
     try {
-      // Check if the bucket exists
-      const { data: buckets } = await supabase
-        .storage
-        .listBuckets();
-      
-      console.log("Available buckets:", buckets?.map(b => b.name));
-      const bucketExists = buckets?.some(bucket => bucket.name === 't-shirt-images');
-      console.log("Bucket 't-shirt-images' exists:", bucketExists);
-      
-      if (!bucketExists) {
-        // Create the bucket if it doesn't exist
-        console.log("Creating bucket 't-shirt-images'");
-        const { error: createError } = await supabase
-          .storage
-          .createBucket('t-shirt-images', {
-            public: true,
-            fileSizeLimit: 5242880 // 5MB
-          });
-          
-        if (createError) {
-          console.error('Error creating bucket:', createError);
-          throw createError;
-        }
-        console.log("Bucket created successfully");
-      }
-      
-      // Generate a unique filename using timestamp and random string
-      const fileExt = imageFile.name.split('.').pop()
-      const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`
-      
-      console.log("Generated filename:", fileName);
-      
-      // Upload to Supabase Storage
-      console.log("Uploading file to Supabase Storage...");
-      const { data, error } = await supabase
-        .storage
-        .from('t-shirt-images')
-        .upload(fileName, imageFile, {
-          cacheControl: '3600',
-          upsert: false
-        })
-      
-      if (error) {
-        console.error('Error uploading image:', error)
-        throw error
-      }
-      
-      console.log("Upload successful, data:", data);
-      
-      // Get public URL
-      console.log("Getting public URL for uploaded image...");
-      const { data: urlData } = supabase
-        .storage
-        .from('t-shirt-images')
-        .getPublicUrl(data.path)
-      
-      console.log("Public URL generated:", urlData.publicUrl);
-      
-      return urlData.publicUrl
-    } catch (error) {
-      console.error('Error uploading image:', error)
-      toast.error('Failed to upload image')
-      return "" // Return empty string on error
-    }
-  }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
-  // State variables
-  const [itemImage, setItemImage] = useState<string>("")
-  const [itemImageFile, setItemImageFile] = useState<File | null>(null)
+      if (collectionId === 'none') {
+        // Remove from all collections
+        const { error } = await supabase
+          .from('t_shirt_collections')
+          .delete()
+          .eq('t_shirt_id', selectedTshirt.id);
+
+        if (error) throw error;
+
+        // Update local state
+        setTshirts(prev => prev.map(t => 
+          t.id === selectedTshirt.id 
+            ? { ...t, collections: [] }
+            : t
+        ));
+
+        toast.success('Moved to All Shirts');
+      } else {
+        // Add to the selected collection
+        const { error } = await supabase
+          .from('t_shirt_collections')
+          .insert({
+            t_shirt_id: selectedTshirt.id,
+            collection_id: parseInt(collectionId)
+          });
+
+        if (error) throw error;
+
+        // Get the collection details
+        const collection = userCollections.find(c => c.id.toString() === collectionId);
+        
+        // Update local state
+        setTshirts(prev => prev.map(t => 
+          t.id === selectedTshirt.id 
+            ? { ...t, collections: [...t.collections, collection!] }
+            : t
+        ));
+
+        toast.success(`Moved to ${collection?.name}`);
+      }
+      
+      setIsChangeCollectionOpen(false);
+    } catch (error) {
+      console.error('Error updating t-shirt collection:', error);
+      toast.error('Failed to update collection');
+    }
+  };
+
+  // Handle bulk collection move
+  const handleBulkCollectionMove = async (collectionId: string | null) => {
+    try {
+      setIsLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      
+      if (collectionId === null) {
+        // Remove selected items from all collections
+        const { error } = await supabase
+          .from('t_shirt_collections')
+          .delete()
+          .in('t_shirt_id', selectedItems);
+        
+        if (error) throw error;
+        
+        // Update local state
+        setTshirts(prev => prev.map(t => 
+          selectedItems.includes(t.id)
+            ? { ...t, collections: [] }
+            : t
+        ));
+        
+        toast.success(`Moved ${selectedItems.length} items to All Shirts`);
+      } else {
+        // Add selected items to the collection
+        const bulkInsert = selectedItems.map(tshirtId => ({
+          t_shirt_id: tshirtId,
+          collection_id: parseInt(collectionId)
+        }));
+        
+        const { error } = await supabase
+          .from('t_shirt_collections')
+          .insert(bulkInsert);
+        
+        if (error) throw error;
+        
+        // Get the collection details
+        const collection = userCollections.find(c => c.id.toString() === collectionId);
+        
+        // Update local state
+        setTshirts(prev => prev.map(t => 
+          selectedItems.includes(t.id)
+            ? { ...t, collections: [...t.collections, collection!] }
+            : t
+        ));
+        
+        toast.success(`Moved ${selectedItems.length} items to ${collection?.name}`);
+      }
+      
+      // Clear selection after successful move
+      setSelectedItems([]);
+    } catch (error) {
+      console.error('Error moving items:', error);
+      toast.error('Failed to move items');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle delete collection
+  const handleDeleteCollection = async (collectionId: string) => {
+    try {
+      const collection = userCollections.find(c => c.id.toString() === collectionId);
+      if (!collection) return;
+
+      // First remove all t-shirt associations
+      const { error: deleteAssociationsError } = await supabase
+        .from('t_shirt_collections')
+        .delete()
+        .eq('collection_id', collection.id);
+
+      if (deleteAssociationsError) throw deleteAssociationsError;
+
+      // Then delete the collection
+      const { error } = await supabase
+        .from('collections')
+        .delete()
+        .eq('id', collection.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setUserCollections(prev => prev.filter(c => c.id.toString() !== collectionId));
+      
+      // Update t-shirts state to remove the deleted collection
+      setTshirts(prev => prev.map(t => ({
+        ...t,
+        collections: t.collections.filter(c => c.id.toString() !== collectionId)
+      })));
+      
+      // If we were viewing the deleted collection, switch to "All Shirts"
+      if (selectedCollection === collectionId) {
+        setSelectedCollection("all");
+      }
+
+      toast.success(`Collection deleted`);
+    } catch (error) {
+      console.error('Error deleting collection:', error);
+      toast.error('Failed to delete collection');
+    }
+  };
 
   return (
     <div className="container py-8">
@@ -1403,10 +1428,6 @@ export default function CollectionPage() {
           <div className="flex items-center gap-2">
             <Button variant="default" onClick={() => setIsQuickAddOpen(true)}>
               <PlusCircle className="mr-2 h-4 w-4" /> Quick Add Item
-            </Button>
-            
-            <Button variant="outline" onClick={() => setIsAddItemOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Item
             </Button>
             
             <DropdownMenu>
@@ -1439,25 +1460,66 @@ export default function CollectionPage() {
         <div className="flex flex-col gap-6">
           {/* Main content area */}
           <div>
+            {/* Collection title and selector */}
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold tracking-tight">My Collection</h1>
+              <p className="text-muted-foreground">Manage and organize your t-shirt collection</p>
+              
+              {/* Collections row */}
+              <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2">
+                <Button
+                  variant={selectedCollection === "all" ? "default" : "outline"}
+                  onClick={() => setSelectedCollection("all")}
+                  className="whitespace-nowrap"
+                >
+                  <Layers className="mr-2 h-4 w-4" /> All Shirts
+                </Button>
+                
+                {userCollections.map((collection) => (
+                  <div key={collection.id} className="flex items-center">
+                    <Button
+                      variant={selectedCollection === collection.id.toString() ? "default" : "outline"}
+                      onClick={() => setSelectedCollection(collection.id.toString())}
+                      className="whitespace-nowrap"
+                    >
+                      {collection.name}
+                    </Button>
+                    
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteCollection(collection.id.toString())}
+                      className="h-8 w-8 ml-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                
+                <Button
+                  variant="outline"
+                  onClick={() => setIsNewCollectionOpen(true)}
+                  className="whitespace-nowrap"
+                >
+                  <Plus className="mr-2 h-4 w-4" /> New Collection
+                </Button>
+              </div>
+            </div>
+
             {/* Collection title */}
             <div className="mb-6">
               {selectedCollection === "all" ? (
-                <h2 className="text-2xl font-bold">All Items ({filteredTshirts.length})</h2>
+                <h2 className="text-2xl font-bold">All Shirts ({filteredTshirts.length})</h2>
               ) : (
                 <>
                   {(() => {
-                    const collection = [...recommendedCollections, ...userCollections].find(
+                    const collection = userCollections.find(
                       (c) => c.id.toString() === selectedCollection,
                     )
                     if (collection) {
                       const itemCount = filteredTshirts.length
                       return (
                         <div className="flex items-center gap-2">
-                          {collection.icon ? (
-                            <span className="text-2xl">{collection.icon}</span>
-                          ) : (
-                            <div className={`w-6 h-6 rounded-full ${collection.color}`}></div>
-                          )}
                           <h2 className="text-2xl font-bold">
                             {collection.name} ({itemCount})
                           </h2>
@@ -1748,6 +1810,19 @@ export default function CollectionPage() {
                                     Taking Offers
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
+                                  <DropdownMenuLabel>Collections</DropdownMenuLabel>
+                                  <DropdownMenuItem key="bulk-all-shirts" onClick={() => handleBulkCollectionMove(null)}>
+                                    Move to All Shirts
+                                  </DropdownMenuItem>
+                                  {userCollections.map((collection) => (
+                                    <DropdownMenuItem 
+                                      key={`bulk-collection-${collection.id}`} 
+                                      onClick={() => handleBulkCollectionMove(collection.id.toString())}
+                                    >
+                                      Move to {collection.name}
+                                    </DropdownMenuItem>
+                                  ))}
+                                  <DropdownMenuSeparator />
                                   <DropdownMenuItem key="bulk-delete" onClick={handleBulkDelete} className="text-destructive">
                                     Delete Selected
                                   </DropdownMenuItem>
@@ -1852,7 +1927,7 @@ export default function CollectionPage() {
                             </div>
                           </CardContent>
                           <CardFooter className="p-4 pt-0 flex justify-between">
-                            <span className="text-sm text-muted-foreground">Added {shirt.date_added}</span>
+                            <span className="text-sm text-muted-foreground">Added {new Date(shirt.date_added).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
                             <span className="font-medium">${shirt.estimated_value}</span>
                           </CardFooter>
                         </Card>
@@ -1895,6 +1970,19 @@ export default function CollectionPage() {
                                 <DropdownMenuItem key="bulk-taking-offers" onClick={() => handleBulkStatusChange("Taking Offers")}>
                                   Taking Offers
                                 </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel>Collections</DropdownMenuLabel>
+                                <DropdownMenuItem key="bulk-all-shirts" onClick={() => handleBulkCollectionMove(null)}>
+                                  Move to All Shirts
+                                </DropdownMenuItem>
+                                {userCollections.map((collection) => (
+                                  <DropdownMenuItem 
+                                    key={`bulk-collection-${collection.id}`} 
+                                    onClick={() => handleBulkCollectionMove(collection.id.toString())}
+                                  >
+                                    Move to {collection.name}
+                                  </DropdownMenuItem>
+                                ))}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem key="bulk-delete" onClick={handleBulkDelete} className="text-destructive">
                                   Delete Selected
@@ -2126,141 +2214,149 @@ export default function CollectionPage() {
                             {visibleColumns.includes("actions") && (
                               <th className="px-4 py-3 text-right font-medium">Actions</th>
                             )}
+
+                            {visibleColumns.includes("collection") && (
+                              <th className="px-4 py-3 text-left font-medium">Collection</th>
+                            )}
                           </tr>
                         </thead>
                         <tbody className="divide-y">
                           {sortedTshirts.map((shirt) => (
-                            <tr
-                              key={shirt.id}
-                              className={`hover:bg-muted/50 ${selectedItems.includes(shirt.id) ? "bg-primary/5" : ""}`}
-                            >
-                              <td className="px-4 py-3">
-                                <Checkbox
-                                  checked={selectedItems.includes(shirt.id)}
-                                  onCheckedChange={() => toggleItemSelection(shirt.id)}
-                                  aria-label={`Select ${shirt.name}`}
-                                />
-                              </td>
-                              {visibleColumns.includes("image") && (
-                                <td className="px-4 py-3">
-                                  <div className="h-12 w-12 relative rounded overflow-hidden">
-                                    {shirt.image && shirt.image.includes('cloudinary.com') ? (
-                                      <CldImage
-                                        src={shirt.image.split('/upload/')[1]}
-                                        alt={shirt.name}
-                                        width={48}
-                                        height={48}
-                                        crop="fill"
-                                        gravity="auto"
-                                        className="h-full w-full object-cover"
-                                      />
-                                    ) : (
-                                      <Image
-                                        src={shirt.image || "/placeholder.svg"}
-                                        alt={shirt.name}
-                                        fill
-                                        className="object-cover"
-                                      />
-                                    )}
-                                  </div>
-                                </td>
-                              )}
-
-                              {visibleColumns.includes("name") && (
-                                <td className="px-4 py-3 max-w-[180px]">
-                                  <div className="font-medium truncate" title={shirt.name}>
-                                    {shirt.name}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground line-clamp-1">{shirt.description}</div>
-                                </td>
-                              )}
-
-                              {visibleColumns.includes("licensing") && <td className="px-4 py-3">{shirt.licensing}</td>}  {/* Changed to display licensing property */}
-
+                            <tr key={shirt.id} className={`hover:bg-muted/50 ${selectedItems.includes(shirt.id) ? "bg-primary/5" : ""}`}>
+                              <td className="px-4 py-3"><Checkbox checked={selectedItems.includes(shirt.id)} onCheckedChange={() => toggleItemSelection(shirt.id)} aria-label={`Select ${shirt.name}`}/></td>
+                              {visibleColumns.includes("image") && <td className="px-4 py-3"><div className="h-12 w-12 relative rounded overflow-hidden">{shirt.image && shirt.image.includes('cloudinary.com') ? (<CldImage src={shirt.image.split('/upload/')[1]} alt={shirt.name} width={48} height={48} crop="fill" gravity="auto" className="h-full w-full object-cover"/>) : (<Image src={shirt.image || "/placeholder.svg"} alt={shirt.name} fill className="object-cover"/>)}</div></td>}
+                              {visibleColumns.includes("name") && <td className="px-4 py-3 max-w-[180px]"><div className="font-medium truncate" title={shirt.name}>{shirt.name}</div><div className="text-xs text-muted-foreground line-clamp-1">{shirt.description}</div></td>}
+                              {visibleColumns.includes("licensing") && <td className="px-4 py-3">{shirt.licensing}</td>}
                               {visibleColumns.includes("year") && <td className="px-4 py-3">{shirt.year}</td>}
-
                               {visibleColumns.includes("size") && <td className="px-4 py-3">{shirt.size}</td>}
+                              {visibleColumns.includes("condition") && <td className="px-4 py-3"><Badge variant="outline">{shirt.condition}</Badge></td>}
+                              {visibleColumns.includes("listing_status") && <td className="px-4 py-3"><ListingStatusBadge status={shirt.listing_status} price={shirt.price} itemId={shirt.id} onStatusChange={handleListingStatusChange}/></td>}
+                              {visibleColumns.includes("tags") && <td className="px-4 py-3"><div className="grid grid-cols-2 gap-x-1 gap-y-1 w-[120px]">{shirt.tags.slice(0, 4).map((tag) => (<Badge key={tag} variant="secondary" className="text-xs whitespace-nowrap inline-flex justify-center">{tag}</Badge>))}{shirt.tags.length > 4 && (<TooltipProvider><Tooltip><TooltipTrigger asChild><Badge variant="secondary" className="text-xs whitespace-nowrap col-span-2 justify-center cursor-help">+{shirt.tags.length - 4}</Badge></TooltipTrigger><TooltipContent><div className="flex flex-col gap-1"><p className="font-semibold text-xs">Additional tags:</p>{shirt.tags.slice(4).map((tag) => (<span key={tag} className="text-xs">{tag}</span>))}</div></TooltipContent></Tooltip></TooltipProvider>)}</div></td>}
+                              {visibleColumns.includes("date_added") && <td className="px-4 py-3 text-muted-foreground text-xs">{new Date(shirt.date_added).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>}
+                              {visibleColumns.includes("estimated_value") && <td className="px-4 py-3 text-right font-medium">${shirt.estimated_value}</td>}
+                              {visibleColumns.includes("actions") && <td className="px-4 py-3 text-right"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={async () => {
+    try {
+      // Find the current t-shirt
+      const currentTshirt = tshirts.find(t => t.id === shirt.id);
+      if (!currentTshirt) return;
+      
+      // Skip if it already has no collection
+      if (!currentTshirt.collection_id) {
+        toast.info(`Already in All Shirts`);
+        return;
+      }
+      
+      const { error } = await supabase
+        .from('t_shirts')
+        .update({ collection_id: null })
+        .eq('id', shirt.id);
 
-                              {visibleColumns.includes("condition") && (
-                                <td className="px-4 py-3">
-                                  <Badge variant="outline">{shirt.condition}</Badge>
-                                </td>
-                              )}
+      if (error) throw error;
 
-                              {visibleColumns.includes("listing_status") && (
-                                <td className="px-4 py-3">
-                                  <ListingStatusBadge
-                                    status={shirt.listing_status}
-                                    price={shirt.price}
-                                    itemId={shirt.id}
-                                    onStatusChange={handleListingStatusChange}
-                                  />
-                                </td>
-                              )}
+      // Update local state
+      setTshirts(prevTshirts =>
+        prevTshirts.map(t =>
+          t.id === shirt.id
+            ? { ...t, collection_id: null }
+            : t
+        )
+      );
 
-                              {visibleColumns.includes("tags") && (
+      toast.success(`Moved to All Shirts`);
+    } catch (error) {
+      console.error('Error moving shirt:', error);
+      toast.error('Failed to move shirt');
+    }
+  }}><Layers className="mr-2 h-4 w-4" /> All Shirts</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuSub>
+  <DropdownMenuSubTrigger>
+    <FolderIcon className="mr-2 h-4 w-4" />
+    Manage Collections
+  </DropdownMenuSubTrigger>
+  <DropdownMenuSubContent>
+    {userCollections.map((collection) => (
+      <DropdownMenuItem
+        key={collection.id}
+        onSelect={async () => {
+          try {
+            const isInCollection = shirt.collections.some(c => c.id === collection.id);
+            
+            if (isInCollection) {
+              // Remove from collection
+              const { error } = await supabase
+                .from('t_shirt_collections')
+                .delete()
+                .eq('t_shirt_id', shirt.id)
+                .eq('collection_id', collection.id);
+
+              if (error) throw error;
+
+              // Update local state
+              setTshirts(prevTshirts =>
+                prevTshirts.map(t =>
+                  t.id === shirt.id
+                    ? { ...t, collections: t.collections.filter(c => c.id !== collection.id) }
+                    : t
+                )
+              );
+
+              toast.success(`Removed from ${collection.name}`);
+            } else {
+              // Add to collection
+              const { error } = await supabase
+                .from('t_shirt_collections')
+                .insert({
+                  t_shirt_id: shirt.id,
+                  collection_id: collection.id
+                });
+
+              if (error) throw error;
+
+              // Update local state
+              setTshirts(prevTshirts =>
+                prevTshirts.map(t =>
+                  t.id === shirt.id
+                    ? { ...t, collections: [...t.collections, collection] }
+                    : t
+                )
+              );
+
+              toast.success(`Added to ${collection.name}`);
+            }
+          } catch (error) {
+            console.error('Error managing collections:', error);
+            toast.error('Failed to update collections');
+          }
+        }}
+      >
+        <div className="flex items-center">
+          <Checkbox 
+            checked={shirt.collections.some(c => c.id === collection.id)}
+            className="mr-2"
+          />
+          {collection.name}
+        </div>
+      </DropdownMenuItem>
+    ))}
+  </DropdownMenuSubContent>
+</DropdownMenuSub></DropdownMenuContent></DropdownMenu></td>}
+                              {visibleColumns.includes("collection") && (
                                 <td className="px-4 py-3">
-                                  <div className="grid grid-cols-2 gap-x-1 gap-y-1 w-[120px]">
-                                    {shirt.tags.slice(0, 4).map((tag) => (
-                                      <Badge key={tag} variant="secondary" className="text-xs whitespace-nowrap inline-flex justify-center">
-                                        {tag}
-                                      </Badge>
-                                    ))}
-                                    {shirt.tags.length > 4 && (
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Badge variant="secondary" className="text-xs whitespace-nowrap col-span-2 justify-center cursor-help">
-                                              +{shirt.tags.length - 4}
-                                            </Badge>
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                            <div className="flex flex-col gap-1">
-                                              <p className="font-semibold text-xs">Additional tags:</p>
-                                              {shirt.tags.slice(4).map((tag) => (
-                                                <span key={tag} className="text-xs">{tag}</span>
-                                              ))}
-                                            </div>
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
+                                  <div className="flex flex-wrap gap-1">
+                                    {shirt.collections.length > 0 ? (
+                                      shirt.collections.map((collection) => (
+                                        <Badge 
+                                          key={collection.id} 
+                                          variant="outline" 
+                                          className="text-xs cursor-pointer hover:bg-accent"
+                                          onClick={() => setSelectedCollection(collection.id.toString())}
+                                        >
+                                          {collection.name}
+                                        </Badge>
+                                      ))
+                                    ) : (
+                                      <span className="text-muted-foreground text-xs">All Shirts</span>
                                     )}
                                   </div>
-                                </td>
-                              )}
-
-                              {visibleColumns.includes("date_added") && (
-                                <td className="px-4 py-3 text-muted-foreground text-xs">{shirt.date_added}</td>
-                              )}
-
-                              {visibleColumns.includes("estimated_value") && (
-                                <td className="px-4 py-3 text-right font-medium">${shirt.estimated_value}</td>
-                              )}
-
-                              {visibleColumns.includes("actions") && (
-                                <td className="px-4 py-3 text-right">
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" className="h-8 w-8 p-0">
-                                        <MoreVertical className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuLabel>Listing Status</DropdownMenuLabel>
-                                      <DropdownMenuItem key={`item-${shirt.id}-public`} onClick={() => handleListingStatusChange(shirt.id, "Public")}>
-                                        Public
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem key={`item-${shirt.id}-private`} onClick={() => handleListingStatusChange(shirt.id, "Private")}>
-                                        Private
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem key={`item-${shirt.id}-for-sale`} onClick={() => handleListingStatusChange(shirt.id, "For Sale")}>
-                                        For Sale
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem key={`item-${shirt.id}-taking-offers`} onClick={() => handleListingStatusChange(shirt.id, "Taking Offers")}>
-                                        Taking Offers
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
                                 </td>
                               )}
                             </tr>
@@ -2293,14 +2389,15 @@ export default function CollectionPage() {
         setIsNewCollectionOpen(open)
         if (!open) {
           setFormKey(prev => prev + 1)
+          setNewCollectionName("")
+          setNewCollectionTags([])
         }
       }}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Create New Collection</DialogTitle>
             <DialogDescription>
-              Create a custom collection to organize your t-shirts. Collections are automatically populated based on
-              tags.
+              Create a custom collection to organize your t-shirts.
             </DialogDescription>
           </DialogHeader>
           <form key={`collection-form-${formKey}`} onSubmit={(e) => {
@@ -2309,78 +2406,18 @@ export default function CollectionPage() {
           }}>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="collection-name">Collection Name</Label>
+                <Label htmlFor="collection-name">Collection Name*</Label>
                 <Input
                   id="collection-name"
-                  placeholder="e.g., Concert Tees, Vintage Finds"
                   value={newCollectionName}
                   onChange={(e) => setNewCollectionName(e.target.value)}
+                  placeholder="e.g., Vintage Rock Tees"
+                  required
                 />
-              </div>
-              <div className="grid gap-2">
-                <Label>Collection Color</Label>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    "bg-red-500",
-                    "bg-orange-500",
-                    "bg-amber-500",
-                    "bg-yellow-500",
-                    "bg-lime-500",
-                    "bg-green-500",
-                    "bg-emerald-500",
-                    "bg-teal-500",
-                    "bg-cyan-500",
-                    "bg-sky-500",
-                    "bg-blue-500",
-                    "bg-indigo-500",
-                    "bg-violet-500",
-                    "bg-purple-500",
-                    "bg-fuchsia-500",
-                    "bg-pink-500",
-                    "bg-rose-500",
-                  ].map((color) => (
-                    <Button
-                      key={color}
-                      type="button"
-                      variant="outline"
-                      className={`w-8 h-8 rounded-full p-0 ${newCollectionColor === color ? "ring-2 ring-offset-2 ring-ring" : ""}`}
-                      style={{ backgroundColor: `var(--${color.replace("bg-", "")})` }}
-                      onClick={() => setNewCollectionColor(color)}
-                    >
-                      <span className="sr-only">Select {color} color</span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label>Tags (select tags to auto-populate this collection)</Label>
-                <ScrollArea className="h-[200px] border rounded-md p-2">
-                  <div className="flex flex-wrap gap-2 p-1">
-                    {allTags.sort().map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant={newCollectionTags.includes(tag) ? "default" : "outline"}
-                        className="cursor-pointer"
-                        onClick={() => toggleTag(tag)}
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </ScrollArea>
-                <p className="text-sm text-muted-foreground">
-                  Selected tags: {newCollectionTags.length > 0 ? newCollectionTags.join(", ") : "None"}
-                </p>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsNewCollectionOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateCollection}
-                disabled={!newCollectionName.trim() || newCollectionTags.length === 0}
-              >
+              <Button type="submit" disabled={!newCollectionName}>
                 Create Collection
               </Button>
             </DialogFooter>
@@ -2964,6 +3001,37 @@ export default function CollectionPage() {
               {isLoading ? "Adding..." : "Add Item"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Collection Dialog */}
+      <Dialog open={isChangeCollectionOpen} onOpenChange={setIsChangeCollectionOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move to Collection</DialogTitle>
+            <DialogDescription>Choose a collection to move this t-shirt to</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Select
+              value={selectedCollectionId}
+              onValueChange={handleCollectionChange}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a collection" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">All Items</SelectItem>
+                {userCollections.map((collection) => (
+                  <SelectItem key={collection.id} value={collection.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-4 h-4 rounded-full ${collection.color}`}></div>
+                      {collection.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

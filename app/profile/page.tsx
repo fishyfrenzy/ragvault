@@ -491,12 +491,12 @@ export default function ProfilePage() {
   }, [profile])
 
   if (isLoading) {
-    return (
-      <div className="container py-8">
+  return (
+    <div className="container py-8">
         <div className="flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </div>
+          </div>
+                </div>
     )
   }
 
@@ -504,7 +504,7 @@ export default function ProfilePage() {
     return (
       <div className="container py-8">
         <div className="text-center text-red-500">{error}</div>
-      </div>
+        </div>
     )
   }
 
@@ -518,7 +518,7 @@ export default function ProfilePage() {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="my-profile">My Profile</TabsTrigger>
           <TabsTrigger value="public-profile">Public Profile</TabsTrigger>
-        </TabsList>
+          </TabsList>
 
         <TabsContent value="my-profile" className="space-y-6">
           <Card>
@@ -531,9 +531,9 @@ export default function ProfilePage() {
                 {!isEditing && (
                   <Button onClick={() => setIsEditing(true)}>
                     <Edit className="h-4 w-4 mr-2" /> Edit Profile
-                  </Button>
+              </Button>
                 )}
-              </div>
+            </div>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
@@ -548,8 +548,8 @@ export default function ProfilePage() {
                       onClick={handleAvatarClick}
                     >
                       <Edit className="h-6 w-6 text-white" />
-                    </div>
-                  )}
+                      </div>
+                    )}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -558,12 +558,12 @@ export default function ProfilePage() {
                     onChange={handleAvatarChange}
                     disabled={isUploading}
                   />
-                </div>
+                  </div>
                 <div>
                   <h3 className="text-xl font-semibold">{profile.username || 'Set Username'}</h3>
                   <p className="text-sm text-muted-foreground">{profile.email}</p>
                 </div>
-              </div>
+            </div>
 
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-4">
@@ -576,7 +576,7 @@ export default function ProfilePage() {
                       disabled={!isEditing}
                       placeholder="Choose a username"
                     />
-                  </div>
+                        </div>
 
                   <div className="grid gap-2">
                     <Label htmlFor="full_name">Full Name</Label>
@@ -587,7 +587,7 @@ export default function ProfilePage() {
                       disabled={!isEditing}
                       placeholder="Your full name"
                     />
-                  </div>
+                        </div>
 
                   <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
@@ -597,7 +597,7 @@ export default function ProfilePage() {
                       value={profile.email}
                       disabled
                     />
-                  </div>
+                        </div>
 
                   <div className="grid gap-2">
                     <Label htmlFor="bio">Bio</Label>
@@ -609,8 +609,8 @@ export default function ProfilePage() {
                       placeholder="Tell us about yourself"
                       className="min-h-[100px]"
                     />
-                  </div>
-                </div>
+                        </div>
+                        </div>
 
                 <div className="space-y-4">
                   <div className="grid gap-2">
@@ -622,7 +622,7 @@ export default function ProfilePage() {
                       disabled={!isEditing}
                       placeholder="Where are you based?"
                     />
-                  </div>
+                        </div>
 
                   <div className="grid gap-2">
                     <Label htmlFor="website">Website</Label>
@@ -633,7 +633,7 @@ export default function ProfilePage() {
                       disabled={!isEditing}
                       placeholder="Your personal website"
                     />
-                  </div>
+                        </div>
 
                   <div className="grid gap-2">
                     <Label htmlFor="instagram">Instagram</Label>
@@ -644,7 +644,7 @@ export default function ProfilePage() {
                       disabled={!isEditing}
                       placeholder="Your Instagram username"
                     />
-                  </div>
+                        </div>
 
                   <div className="grid gap-2">
                     <Label htmlFor="twitter">Twitter</Label>
@@ -655,7 +655,7 @@ export default function ProfilePage() {
                       disabled={!isEditing}
                       placeholder="Your Twitter username"
                     />
-                  </div>
+                      </div>
 
                   <div className="grid gap-2">
                     <Label htmlFor="facebook">Facebook</Label>
@@ -666,9 +666,9 @@ export default function ProfilePage() {
                       disabled={!isEditing}
                       placeholder="Your Facebook username"
                     />
-                  </div>
-                </div>
-              </div>
+                    </div>
+                        </div>
+                        </div>
 
               {isEditing && (
                 <div className="flex justify-end gap-2 pt-4">
@@ -679,7 +679,7 @@ export default function ProfilePage() {
                     Cancel
                   </Button>
                   <Button onClick={handleSave}>Save Changes</Button>
-                </div>
+                        </div>
               )}
             </CardContent>
           </Card>
@@ -697,12 +697,12 @@ export default function ProfilePage() {
                       <div className="rounded-lg border p-4">
                         <h4 className="text-sm font-medium text-muted-foreground">Total Items</h4>
                         <p className="text-2xl font-bold mt-1">{stats.totalItems}</p>
-                      </div>
+                        </div>
                       <div className="rounded-lg border p-4">
                         <h4 className="text-sm font-medium text-muted-foreground">Estimated Value</h4>
                         <p className="text-2xl font-bold mt-1">${stats.totalValue.toLocaleString()}</p>
-                      </div>
-                    </div>
+                        </div>
+                        </div>
 
                     <div className="rounded-lg border p-4">
                       <h4 className="text-sm font-medium text-muted-foreground mb-3">Licensing</h4>
@@ -712,9 +712,9 @@ export default function ProfilePage() {
                             {licensing.name} ({licensing.count})
                           </Badge>
                         ))}
+                        </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
 
                   <div className="space-y-6">
                     <div className="rounded-lg border p-4">
@@ -725,23 +725,23 @@ export default function ProfilePage() {
                             {tag.name} ({tag.count})
                           </Badge>
                         ))}
-                      </div>
+                    </div>
+                        </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
           )}
-        </TabsContent>
+          </TabsContent>
 
         <TabsContent value="public-profile" className="space-y-6">
-          <Card>
-            <CardHeader>
+              <Card>
+                <CardHeader>
               <CardTitle>Privacy Settings</CardTitle>
               <CardDescription>Control what information is visible to other users</CardDescription>
-            </CardHeader>
+                </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-4">
+                  <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Show Email</Label>
@@ -750,19 +750,19 @@ export default function ProfilePage() {
                   <Switch
                     checked={profile.show_email}
                     onCheckedChange={(checked) => setEditedProfile({ ...editedProfile, show_email: checked })}
-                  />
-                </div>
+                        />
+                      </div>
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Show Location</Label>
                     <p className="text-sm text-muted-foreground">Display your location on your public profile</p>
-                  </div>
+                      </div>
                   <Switch
                     checked={profile.show_location}
                     onCheckedChange={(checked) => setEditedProfile({ ...editedProfile, show_location: checked })}
                   />
-                </div>
+                    </div>
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
@@ -772,20 +772,20 @@ export default function ProfilePage() {
                   <Switch
                     checked={profile.show_website}
                     onCheckedChange={(checked) => setEditedProfile({ ...editedProfile, show_website: checked })}
-                  />
-                </div>
+                        />
+                      </div>
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Show Social Links</Label>
                     <p className="text-sm text-muted-foreground">Display your social media links on your public profile</p>
-                  </div>
+                      </div>
                   <Switch
                     checked={profile.show_social}
                     onCheckedChange={(checked) => setEditedProfile({ ...editedProfile, show_social: checked })}
                   />
-                </div>
-              </div>
+                    </div>
+                  </div>
 
               {Object.keys(editedProfile).length > 0 && (
                 <div className="flex justify-end gap-2 pt-4">
@@ -796,14 +796,14 @@ export default function ProfilePage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+              </Card>
 
-          <Card>
-            <CardHeader>
+              <Card>
+                <CardHeader>
               <CardTitle>Public Profile Preview</CardTitle>
               <CardDescription>How your profile will appear to other users</CardDescription>
-            </CardHeader>
-            <CardContent>
+                </CardHeader>
+                <CardContent>
               <div className="flex items-center gap-6">
                 <Avatar className="h-24 w-24">
                   <AvatarImage src={profile.avatar_url || undefined} />
@@ -817,8 +817,8 @@ export default function ProfilePage() {
                       {profile.email}
                     </p>
                   )}
-                </div>
-              </div>
+                      </div>
+                      </div>
 
               {profile.bio && (
                 <p className="mt-4 text-sm text-muted-foreground">{profile.bio}</p>
@@ -837,7 +837,7 @@ export default function ProfilePage() {
                     {profile.website}
                   </Badge>
                 )}
-              </div>
+                    </div>
 
               {profile.show_social && (
                 <div className="mt-4 flex gap-4">
@@ -856,7 +856,7 @@ export default function ProfilePage() {
                       <Facebook className="h-5 w-5" />
                     </a>
                   )}
-                </div>
+                      </div>
               )}
 
               {stats && (
@@ -866,7 +866,7 @@ export default function ProfilePage() {
                     <Button variant="outline" size="sm" onClick={() => setIsCollectionOverviewSettingsOpen(true)}>
                       <Settings className="h-4 w-4 mr-2" /> Customize
                     </Button>
-                  </div>
+                      </div>
                   <div className="grid gap-6 md:grid-cols-2">
                     {profile.collection_overview_preferences.order.map((item) => {
                       switch (item) {
@@ -875,14 +875,14 @@ export default function ProfilePage() {
                             <div key="totalItems" className="rounded-lg border p-4">
                               <h4 className="text-sm font-medium text-muted-foreground">Total Items</h4>
                               <p className="text-2xl font-bold mt-1">{stats.totalItems}</p>
-                            </div>
+                    </div>
                           )
                         case 'estimatedValue':
                           return profile.collection_overview_preferences.showEstimatedValue && (
                             <div key="estimatedValue" className="rounded-lg border p-4">
                               <h4 className="text-sm font-medium text-muted-foreground">Estimated Value</h4>
                               <p className="text-2xl font-bold mt-1">${stats.totalValue.toLocaleString()}</p>
-                            </div>
+                  </div>
                           )
                         case 'licensing':
                           return profile.collection_overview_preferences.showLicensing && (
@@ -894,8 +894,8 @@ export default function ProfilePage() {
                                     {licensing.name} ({licensing.count})
                                   </Badge>
                                 ))}
-                              </div>
-                            </div>
+            </div>
+                      </div>
                           )
                         case 'tags':
                           return profile.collection_overview_preferences.showTags && (
@@ -907,8 +907,8 @@ export default function ProfilePage() {
                                     {tag.name} ({tag.count})
                                   </Badge>
                                 ))}
-                              </div>
-                            </div>
+                    </div>
+                      </div>
                           )
                         default:
                           return null
@@ -923,8 +923,8 @@ export default function ProfilePage() {
                   <h3 className="text-lg font-semibold">Featured Shirts</h3>
                   <Button variant="outline" size="sm" onClick={() => setIsFeaturedShirtsOpen(true)}>
                     <Edit className="h-4 w-4 mr-2" /> Edit
-                  </Button>
-                </div>
+                      </Button>
+                    </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {featuredShirts.map((shirt) => (
                     <Card key={shirt.id} className="overflow-hidden">
@@ -935,14 +935,14 @@ export default function ProfilePage() {
                           fill
                           className="object-cover"
                         />
-                      </div>
+                  </div>
                       <CardContent className="p-4">
                         <h4 className="font-medium truncate">{shirt.name}</h4>
                         <p className="text-sm text-muted-foreground">{shirt.licensing} • {shirt.year}</p>
-                      </CardContent>
-                    </Card>
+                </CardContent>
+              </Card>
                   ))}
-                </div>
+            </div>
               </div>
 
               <div className="mt-8">
@@ -950,8 +950,8 @@ export default function ProfilePage() {
                   <h3 className="text-lg font-semibold">Featured Collections</h3>
                   <Button variant="outline" size="sm" onClick={() => setIsFeaturedCollectionsOpen(true)}>
                     <Edit className="h-4 w-4 mr-2" /> Edit
-                  </Button>
-                </div>
+                      </Button>
+                    </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {featuredCollections.map((collection) => (
                     <Card key={collection.id} className="overflow-hidden">
@@ -963,15 +963,15 @@ export default function ProfilePage() {
                             <div className={`w-6 h-6 rounded-full ${collection.color}`}></div>
                           )}
                           <h4 className="font-medium">{collection.name}</h4>
-                        </div>
+                      </div>
                         <p className="text-sm text-muted-foreground">{collection.description}</p>
                       </CardContent>
                     </Card>
                   ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
           {/* Collection Overview Settings Dialog */}
           <Dialog open={isCollectionOverviewSettingsOpen} onOpenChange={setIsCollectionOverviewSettingsOpen}>
@@ -980,7 +980,7 @@ export default function ProfilePage() {
                 <DialogTitle>Customize Collection Overview</DialogTitle>
                 <DialogDescription>Choose what to display and in what order</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
+                    <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Display Options</Label>
                   <div className="space-y-2">
@@ -996,7 +996,7 @@ export default function ProfilePage() {
                           updateCollectionOverviewPreferences(newPrefs)
                         }}
                       />
-                    </div>
+                        </div>
                     <div className="flex items-center justify-between">
                       <span>Estimated Value</span>
                       <Switch
@@ -1009,7 +1009,7 @@ export default function ProfilePage() {
                           updateCollectionOverviewPreferences(newPrefs)
                         }}
                       />
-                    </div>
+                          </div>
                     <div className="flex items-center justify-between">
                       <span>Licensing</span>
                       <Switch
@@ -1022,7 +1022,7 @@ export default function ProfilePage() {
                           updateCollectionOverviewPreferences(newPrefs)
                         }}
                       />
-                    </div>
+                        </div>
                     <div className="flex items-center justify-between">
                       <span>Tags</span>
                       <Switch
@@ -1035,8 +1035,8 @@ export default function ProfilePage() {
                           updateCollectionOverviewPreferences(newPrefs)
                         }}
                       />
-                    </div>
-                  </div>
+                      </div>
+                        </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Display Order</Label>
@@ -1111,9 +1111,9 @@ export default function ProfilePage() {
                     >
                       Add Item
                     </Button>
-                  </div>
-                </div>
-              </div>
+                          </div>
+                        </div>
+                      </div>
             </DialogContent>
           </Dialog>
 
@@ -1146,15 +1146,15 @@ export default function ProfilePage() {
                           fill
                           className="object-cover"
                         />
-                      </div>
+                    </div>
                       <CardContent className="p-4">
                         <h4 className="font-medium truncate">{shirt.name}</h4>
                         <p className="text-sm text-muted-foreground">{shirt.licensing} • {shirt.year}</p>
-                      </CardContent>
-                    </Card>
+                  </CardContent>
+                </Card>
                   ))}
-                </div>
               </div>
+            </div>
             </DialogContent>
           </Dialog>
 
@@ -1197,8 +1197,8 @@ export default function ProfilePage() {
               </div>
             </DialogContent>
           </Dialog>
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+        </Tabs>
     </div>
   )
 }
