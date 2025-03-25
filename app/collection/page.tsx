@@ -109,7 +109,7 @@ interface TShirt {
   condition: string
   size: string
   tags: string[]
-  image: string
+  image: string | null
   description: string
   date_added: string
   estimated_value: number
@@ -119,22 +119,33 @@ interface TShirt {
   collections: Collection[]
 }
 
-// Add this type definition after your other types
+// Update Collection type to match database schema
 type Collection = {
   id: number
   name: string
-  color: string
   user_id: string
-  tags?: string[]
   is_default?: boolean
 }
 
-// Add this type for the junction table
+type TShirtImage = {
+  image_url: string
+  is_primary: boolean
+}
+
 type TShirtCollection = {
+  collection: Collection
+}
+
+// Add this type definition after your other types
+type TShirtCollectionJunction = {
   t_shirt_id: number
   collection_id: number
   added_at: string
+  collection: Collection
 }
+
+type SortDirection = "asc" | "desc" | null
+type SortField = string | null
 
 // Listing Status Badge Component
 const ListingStatusBadge = ({
@@ -297,18 +308,15 @@ const availableColumns = [
   },
 ]
 
-type SortDirection = "asc" | "desc" | null
-type SortField = string | null
-
-// Recommended collection categories
+// Remove tags from recommended collections
 const recommendedCollections = [
-  { id: 1, name: "90's Nostalgia", icon: "🕰️", tags: ["90s"], color: "bg-purple-500" },
-  { id: 2, name: "Metal Bands", icon: "🤘", tags: ["metal", "band"], color: "bg-black" },
-  { id: 3, name: "Harley & Motorcycles", icon: "🏍️", tags: ["harley", "motorcycle"], color: "bg-orange-600" },
-  { id: 4, name: "Vintage Logos", icon: "🏷️", tags: ["logo", "vintage"], color: "bg-blue-600" },
-  { id: 5, name: "Tour Shirts", icon: "🎸", tags: ["tour"], color: "bg-red-600" },
-  { id: 6, name: "80's Classics", icon: "📼", tags: ["80s"], color: "bg-pink-500" },
-]
+  { id: 1, name: "90's Nostalgia", icon: "🕰️" },
+  { id: 2, name: "Metal Bands", icon: "🤘" },
+  { id: 3, name: "Harley & Motorcycles", icon: "🏍️" },
+  { id: 4, name: "Vintage Logos", icon: "🏷️" },
+  { id: 5, name: "Tour Shirts", icon: "🎸" },
+  { id: 6, name: "80's Classics", icon: "📼" }
+];
 
 // Image Uploader Component
 const ImageUploader = ({
@@ -570,8 +578,8 @@ export default function CollectionPage() {
   const [formKey, setFormKey] = useState(0)
 
   // Add these state variables after your other useState declarations
-  const [newCollectionTags, setNewCollectionTags] = useState<string[]>([])
   const [newCollectionName, setNewCollectionName] = useState("")
+  const [newCollectionTags, setNewCollectionTags] = useState<string[]>([])
   const [newCollectionColor, setNewCollectionColor] = useState("#000000")
   const [isChangeCollectionOpen, setIsChangeCollectionOpen] = useState(false)
   const [selectedTshirt, setSelectedTshirt] = useState<TShirt | null>(null)
@@ -590,34 +598,53 @@ export default function CollectionPage() {
           .select('*')
           .eq('user_id', user.id)
 
-        if (collectionsError) throw collectionsError
+        if (collectionsError) {
+          console.error('Error fetching collections:', collectionsError.message);
+          throw new Error(`Failed to fetch collections: ${collectionsError.message}`);
+        }
         
         setUserCollections(collectionsData || [])
 
-        // Fetch t-shirts with their collections
+        // Fetch t-shirts with their collections and images
         const { data: tshirtsData, error: tshirtsError } = await supabase
           .from('t_shirts')
           .select(`
             *,
-            collections:t_shirt_collections(
-              collection:collections(*)
+            t_shirt_collections (
+              collection:collections (
+                id,
+                name,
+                user_id,
+                is_default
+              )
+            ),
+            item_images (
+              image_url,
+              is_primary
             )
           `)
           .eq('user_id', user.id)
-          .order('date_added', { ascending: false })
+          .order('date_added', { ascending: false });
 
-        if (tshirtsError) throw tshirtsError
+        if (tshirtsError) {
+          console.error('Error fetching t-shirts:', tshirtsError.message);
+          throw new Error(`Failed to fetch t-shirts: ${tshirtsError.message}`);
+        }
 
         // Transform the data to match our TShirt type
-        const transformedTshirts = tshirtsData?.map(shirt => ({
+        const transformedTshirts = (tshirtsData || []).map(shirt => ({
           ...shirt,
-          collections: shirt.collections.map(c => c.collection)
-        })) || [];
+          collections: (shirt.t_shirt_collections || [])
+            .filter((tc: any) => tc?.collection)
+            .map((tc: any) => tc.collection),
+          image: (shirt.item_images || [])[0]?.image_url || null
+        }));
 
         setTshirts(transformedTshirts);
       } catch (error) {
-        console.error('Error fetching data:', error)
-        toast.error('Failed to load your collection')
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load collection';
+        console.error('Error in fetchData:', errorMessage);
+        toast.error(errorMessage);
       } finally {
         setIsLoading(false)
       }
@@ -1062,6 +1089,7 @@ export default function CollectionPage() {
         
         if (!name) continue;
 
+        // Create the t-shirt record
         const newItem = {
           name,
           licensing: '',
@@ -1074,8 +1102,7 @@ export default function CollectionPage() {
           listing_status: 'Public',
           price: null,
           user_id: user.id,
-          date_added: new Date().toISOString(),
-          image: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=764&q=80"
+          date_added: new Date().toISOString()
         };
 
         // Insert the t-shirt
@@ -1089,6 +1116,66 @@ export default function CollectionPage() {
           console.error('Error adding item:', insertError);
           toast.error(`Error adding "${name}": ${insertError.message}`);
           continue;
+        }
+
+        let imageUrl = null;
+
+        // Handle image upload if there's an image
+        if (item.imageFile) {
+          try {
+            const formData = new FormData();
+            formData.append('file', item.imageFile);
+            
+            const response = await fetch('/api/upload', {
+              method: 'POST',
+              body: formData
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'Failed to upload image');
+            }
+            
+            const data = await response.json();
+            imageUrl = data.url;
+            
+            // Add image to item_images table
+            const { error: imageError } = await supabase
+              .from('item_images')
+              .insert({
+                t_shirt_id: tshirtData.id,
+                image_url: imageUrl,
+                is_primary: true
+              });
+
+            if (imageError) {
+              console.error('Error adding image:', imageError.message);
+              toast.error(`Added "${name}" but failed to add image`);
+            }
+          } catch (uploadError) {
+            console.error('Error uploading image:', uploadError instanceof Error ? uploadError.message : 'Unknown error');
+            toast.error(`Added "${name}" but failed to upload image`);
+          }
+        } else {
+          // Add default image if no image was uploaded
+          const defaultImageUrl = "https://images.unsplash.com/photo-1576566588028-4147f3842f27?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=764&q=80";
+          imageUrl = defaultImageUrl;
+          
+          try {
+            const { error: imageError } = await supabase
+              .from('item_images')
+              .insert({
+                t_shirt_id: tshirtData.id,
+                image_url: defaultImageUrl,
+                is_primary: true
+              });
+
+            if (imageError) {
+              console.error('Error adding default image:', imageError.message);
+            }
+          } catch (error) {
+            console.error('Error adding default image:', error instanceof Error ? error.message : 'Unknown error');
+          }
         }
 
         // If a collection is selected (not "all"), add to that collection
@@ -1107,12 +1194,13 @@ export default function CollectionPage() {
           }
         }
 
-        // Update local state
+        // Update local state with the correct image URL
         const newTshirt = {
           ...tshirtData,
           collections: selectedCollection !== "all" 
             ? [userCollections.find(c => c.id.toString() === selectedCollection)!]
-            : []
+            : [],
+          image: imageUrl
         };
         
         setTshirts(prev => [newTshirt, ...prev]);
@@ -1854,20 +1942,16 @@ export default function CollectionPage() {
                           className={`overflow-hidden ${selectedItems.includes(shirt.id) ? "ring-2 ring-primary/40" : ""}`}
                         >
                           <div className="relative aspect-square">
-                            {shirt.image && shirt.image.includes('cloudinary.com') ? (
-                              <CldImage
-                                src={shirt.image.split('/upload/')[1]}
+                            {shirt.image ? (
+                              <Image
+                                src={shirt.image}
                                 alt={shirt.name}
-                                width={400}
-                                height={400}
-                                crop="fill"
-                                gravity="auto"
-                                loading="lazy"
-                                className="h-full w-full object-cover"
+                                fill
+                                className="object-cover"
                               />
                             ) : (
                               <Image
-                                src={shirt.image || "/placeholder.svg"}
+                                src="/placeholder.svg"
                                 alt={shirt.name}
                                 fill
                                 className="object-cover"
@@ -2224,7 +2308,27 @@ export default function CollectionPage() {
                           {sortedTshirts.map((shirt) => (
                             <tr key={shirt.id} className={`hover:bg-muted/50 ${selectedItems.includes(shirt.id) ? "bg-primary/5" : ""}`}>
                               <td className="px-4 py-3"><Checkbox checked={selectedItems.includes(shirt.id)} onCheckedChange={() => toggleItemSelection(shirt.id)} aria-label={`Select ${shirt.name}`}/></td>
-                              {visibleColumns.includes("image") && <td className="px-4 py-3"><div className="h-12 w-12 relative rounded overflow-hidden">{shirt.image && shirt.image.includes('cloudinary.com') ? (<CldImage src={shirt.image.split('/upload/')[1]} alt={shirt.name} width={48} height={48} crop="fill" gravity="auto" className="h-full w-full object-cover"/>) : (<Image src={shirt.image || "/placeholder.svg"} alt={shirt.name} fill className="object-cover"/>)}</div></td>}
+                              {visibleColumns.includes("image") && (
+                                <td className="px-4 py-3">
+                                  <div className="h-12 w-12 relative rounded overflow-hidden">
+                                    {shirt.image ? (
+                                      <Image
+                                        src={shirt.image}
+                                        alt={shirt.name}
+                                        fill
+                                        className="object-cover"
+                                      />
+                                    ) : (
+                                      <Image
+                                        src="/placeholder.svg"
+                                        alt={shirt.name}
+                                        fill
+                                        className="object-cover"
+                                      />
+                                    )}
+                                  </div>
+                                </td>
+                              )}
                               {visibleColumns.includes("name") && <td className="px-4 py-3 max-w-[180px]"><div className="font-medium truncate" title={shirt.name}>{shirt.name}</div><div className="text-xs text-muted-foreground line-clamp-1">{shirt.description}</div></td>}
                               {visibleColumns.includes("licensing") && <td className="px-4 py-3">{shirt.licensing}</td>}
                               {visibleColumns.includes("year") && <td className="px-4 py-3">{shirt.year}</td>}
@@ -2240,8 +2344,8 @@ export default function CollectionPage() {
       const currentTshirt = tshirts.find(t => t.id === shirt.id);
       if (!currentTshirt) return;
       
-      // Skip if it already has no collection
-      if (!currentTshirt.collection_id) {
+      // Skip if it already has no collections
+      if (currentTshirt.collections.length === 0) {
         toast.info(`Already in All Shirts`);
         return;
       }
@@ -2772,7 +2876,6 @@ export default function CollectionPage() {
                     <ImageUploader
                       defaultImage={itemImage}
                       onImageUpload={(imageUrl, file) => {
-                        console.log("Add Item Image updated:", imageUrl.substring(0, 50), file.name);
                         setItemImage(imageUrl);
                         setItemImageFile(file);
                       }}
@@ -3024,7 +3127,6 @@ export default function CollectionPage() {
                 {userCollections.map((collection) => (
                   <SelectItem key={collection.id} value={collection.id.toString()}>
                     <div className="flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded-full ${collection.color}`}></div>
                       {collection.name}
                     </div>
                   </SelectItem>
