@@ -1517,31 +1517,6 @@ export default function CollectionPage() {
             <Button variant="default" onClick={() => setIsQuickAddOpen(true)}>
               <PlusCircle className="mr-2 h-4 w-4" /> Quick Add Item
             </Button>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <Settings className="mr-2 h-4 w-4" /> Dev Menu
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Developer Tools</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem key="dev-quick-add" onClick={() => setIsQuickAddOpen(true)}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Quick Add Item
-                </DropdownMenuItem>
-                <DropdownMenuItem key="dev-reload" onClick={() => window.location.reload()}>
-                  <ArrowDown className="mr-2 h-4 w-4" /> Reload Data
-                </DropdownMenuItem>
-                <DropdownMenuItem key="dev-clear" onClick={() => {
-                  setTshirts([]);
-                  localStorage.clear();
-                  toast.success("Local state cleared");
-                }}>
-                  <X className="mr-2 h-4 w-4" /> Clear Local State
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </div>
         
@@ -1564,22 +1539,40 @@ export default function CollectionPage() {
                 </Button>
                 
                 {userCollections.map((collection) => (
-                  <div key={collection.id} className="flex items-center">
+                  <div key={collection.id} className="flex items-center gap-1">
                     <Button
                       variant={selectedCollection === collection.id.toString() ? "default" : "outline"}
                       onClick={() => setSelectedCollection(collection.id.toString())}
-                      className="whitespace-nowrap"
+                      className="whitespace-nowrap flex items-center gap-2 pr-2"
                     >
                       {collection.name}
-                    </Button>
-                    
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteCollection(collection.id.toString())}
-                      className="h-8 w-8 ml-1"
-                    >
-                      <Trash2 className="h-4 w-4" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 ml-1 hover:bg-accent"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Collection Settings</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Are you sure you want to delete "${collection.name}"? This cannot be undone.`)) {
+                                handleDeleteCollection(collection.id.toString())
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Collection
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </Button>
                   </div>
                 ))}
