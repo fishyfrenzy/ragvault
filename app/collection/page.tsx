@@ -602,7 +602,7 @@ export default function CollectionPage() {
           console.error('Error fetching collections:', collectionsError.message);
           throw new Error(`Failed to fetch collections: ${collectionsError.message}`);
         }
-        
+
         setUserCollections(collectionsData || [])
 
         // Fetch t-shirts with their collections and images
@@ -667,7 +667,7 @@ export default function CollectionPage() {
     let filtered = [...tshirts];
     
     // Filter by collection
-    if (selectedCollection !== "all") {
+      if (selectedCollection !== "all") {
       filtered = filtered.filter(
         (tshirt) => tshirt.collections.some(collection => collection.id.toString() === selectedCollection)
       );
@@ -792,7 +792,7 @@ export default function CollectionPage() {
       if (error instanceof Error) {
         toast.error(`Error creating collection: ${error.message}`)
       } else {
-        toast.error('Failed to create collection')
+      toast.error('Failed to create collection')
       }
     }
   }
@@ -1071,7 +1071,6 @@ export default function CollectionPage() {
       
       // Filter out any empty items
       const filteredItems = formItems.filter((item, index) => {
-        if (index < formItems.length - 1) return true;
         const nameInput = document.getElementById(`item-${item.id}-name`) as HTMLInputElement;
         return nameInput && nameInput.value.trim() !== '';
       });
@@ -1085,7 +1084,9 @@ export default function CollectionPage() {
       // Process each item
       for (const item of filteredItems) {
         const nameInput = document.getElementById(`item-${item.id}-name`) as HTMLInputElement;
+        const collectionSelect = document.getElementById(`item-${item.id}-collection`) as HTMLSelectElement;
         const name = nameInput?.value.trim();
+        const collectionId = collectionSelect?.value;
         
         if (!name) continue;
 
@@ -1116,6 +1117,21 @@ export default function CollectionPage() {
           console.error('Error adding item:', insertError);
           toast.error(`Error adding "${name}": ${insertError.message}`);
           continue;
+        }
+
+        // Handle collection assignment
+        if (collectionId && collectionId !== "") {
+          const { error: collectionError } = await supabase
+            .from('t_shirt_collections')
+            .insert({
+              t_shirt_id: tshirtData.id,
+              collection_id: parseInt(collectionId)
+            });
+
+          if (collectionError) {
+            console.error('Error adding to collection:', collectionError);
+            toast.error(`Added "${name}" but failed to add to collection`);
+          }
         }
 
         let imageUrl = null;
@@ -1149,63 +1165,26 @@ export default function CollectionPage() {
               });
 
             if (imageError) {
-              console.error('Error adding image:', imageError.message);
+              console.error('Error adding image:', imageError);
               toast.error(`Added "${name}" but failed to add image`);
             }
           } catch (uploadError) {
-            console.error('Error uploading image:', uploadError instanceof Error ? uploadError.message : 'Unknown error');
+            console.error('Error uploading image:', uploadError);
             toast.error(`Added "${name}" but failed to upload image`);
           }
-        } else {
-          // Add default image if no image was uploaded
-          const defaultImageUrl = "https://images.unsplash.com/photo-1576566588028-4147f3842f27?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=764&q=80";
-          imageUrl = defaultImageUrl;
-          
-          try {
-            const { error: imageError } = await supabase
-              .from('item_images')
-              .insert({
-                t_shirt_id: tshirtData.id,
-                image_url: defaultImageUrl,
-                is_primary: true
-              });
-
-            if (imageError) {
-              console.error('Error adding default image:', imageError.message);
-            }
-          } catch (error) {
-            console.error('Error adding default image:', error instanceof Error ? error.message : 'Unknown error');
-          }
         }
 
-        // If a collection is selected (not "all"), add to that collection
-        if (selectedCollection !== "all") {
-          const { error: collectionError } = await supabase
-            .from('t_shirt_collections')
-            .insert({
-              t_shirt_id: tshirtData.id,
-              collection_id: parseInt(selectedCollection)
-            });
-
-          if (collectionError) {
-            console.error('Error adding to collection:', collectionError);
-            toast.error(`Added "${name}" but failed to add to collection`);
-            continue;
-          }
-        }
-
-        // Update local state with the correct image URL
+        // Update local state with the correct collection and image
+        const selectedCollectionObj = collectionId ? userCollections.find(c => c.id.toString() === collectionId) : null;
         const newTshirt = {
           ...tshirtData,
-          collections: selectedCollection !== "all" 
-            ? [userCollections.find(c => c.id.toString() === selectedCollection)!]
-            : [],
-          image: imageUrl
+          collections: selectedCollectionObj ? [selectedCollectionObj] : [],
+          image: imageUrl || "https://sdmntprwestus.oaiusercontent.com/files/00000000-b1a8-5230-9a33-8d0232019a5f/raw?se=2025-03-25T23%3A45%3A28Z&sp=r&sv=2024-08-04&sr=b&scid=35598117-395a-59d8-a5cb-86eaf280ea73&skoid=e825dac8-9fae-4e05-9fdb-3d74e1880d5a&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-03-25T20%3A48%3A06Z&ske=2025-03-26T20%3A48%3A06Z&sks=b&skv=2024-08-04&sig=psPavEWQA3Tr2Vce2yxy3ylFO8JFlpy62JmWPvXx0TM%3D"
         };
         
         setTshirts(prev => [newTshirt, ...prev]);
       }
-
+      
       // Reset form
       setFormItems([{ id: Date.now().toString(), values: {}, imageFile: null, imageUrl: "" }]);
       setFormKey(prev => prev + 1);
@@ -1213,11 +1192,7 @@ export default function CollectionPage() {
       toast.success(`Added ${filteredItems.length} item${filteredItems.length > 1 ? 's' : ''} successfully`);
     } catch (error) {
       console.error('Error adding items:', error);
-      if (error instanceof Error) {
-        toast.error(`Error adding items: ${error.message}`);
-      } else {
-        toast.error('Failed to add items');
-      }
+      toast.error('Failed to add items');
     } finally {
       setIsLoading(false);
     }
@@ -1313,7 +1288,7 @@ export default function CollectionPage() {
       setTshirts(prev => [newTshirt, ...prev]);
       setIsAddItemOpen(false);
       toast.success('Item added successfully');
-
+      
       // Reset form
       form.reset();
       setOptionalFields({
@@ -1507,94 +1482,85 @@ export default function CollectionPage() {
 
   return (
     <div className="container py-8">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col min-h-screen">
           <div>
+      <div className="flex flex-col gap-6">
+            {/* Main content area */}
+          <div>
+              {/* Collection title and selector */}
+              <div className="mb-6">
             <h1 className="text-3xl font-bold tracking-tight">My Collection</h1>
             <p className="text-muted-foreground">Manage and organize your t-shirt collection</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="default" onClick={() => setIsQuickAddOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Quick Add Item
+                
+                {/* Collections row */}
+                <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2">
+                  <Button
+                    variant={selectedCollection === "all" ? "default" : "outline"}
+                    onClick={() => setSelectedCollection("all")}
+                    className="whitespace-nowrap"
+                  >
+                    <Layers className="mr-2 h-4 w-4" /> All Shirts
             </Button>
+            
+                  {userCollections.map((collection) => (
+                    <div key={collection.id} className="flex items-center gap-1">
+                      <div className="relative flex items-center">
+                        <Button
+                          variant={selectedCollection === collection.id.toString() ? "default" : "outline"}
+                          onClick={() => setSelectedCollection(collection.id.toString())}
+                          className="whitespace-nowrap"
+                        >
+                          {collection.name}
+            </Button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 ml-1 hover:bg-accent absolute right-0"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Collection Settings</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to delete "${collection.name}"? This cannot be undone.`)) {
+                                  handleDeleteCollection(collection.id.toString())
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Collection
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-        
-        <div className="flex flex-col gap-6">
-          {/* Main content area */}
-          <div>
-            {/* Collection title and selector */}
-            <div className="mb-6">
-              <h1 className="text-3xl font-bold tracking-tight">My Collection</h1>
-              <p className="text-muted-foreground">Manage and organize your t-shirt collection</p>
-              
-              {/* Collections row */}
-              <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2">
-                <Button
-                  variant={selectedCollection === "all" ? "default" : "outline"}
-                  onClick={() => setSelectedCollection("all")}
-                  className="whitespace-nowrap"
-                >
-                  <Layers className="mr-2 h-4 w-4" /> All Shirts
-                </Button>
-                
-                {userCollections.map((collection) => (
-                  <div key={collection.id} className="flex items-center gap-1">
-                    <Button
-                      variant={selectedCollection === collection.id.toString() ? "default" : "outline"}
-                      onClick={() => setSelectedCollection(collection.id.toString())}
-                      className="whitespace-nowrap flex items-center gap-2 pr-2"
-                    >
-                      {collection.name}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 ml-1 hover:bg-accent"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Collection Settings</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm(`Are you sure you want to delete "${collection.name}"? This cannot be undone.`)) {
-                                handleDeleteCollection(collection.id.toString())
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Collection
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </Button>
-                  </div>
-                ))}
-                
-                <Button
-                  variant="outline"
-                  onClick={() => setIsNewCollectionOpen(true)}
-                  className="whitespace-nowrap"
-                >
-                  <Plus className="mr-2 h-4 w-4" /> New Collection
-                </Button>
+                  ))}
+                  
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsNewCollectionOpen(true)}
+                    className="whitespace-nowrap"
+                  >
+                    <Plus className="mr-2 h-4 w-4" /> New Collection
+                  </Button>
+                </div>
               </div>
-            </div>
 
             {/* Collection title */}
             <div className="mb-6">
               {selectedCollection === "all" ? (
-                <h2 className="text-2xl font-bold">All Shirts ({filteredTshirts.length})</h2>
+                  <h2 className="text-2xl font-bold">All Shirts ({filteredTshirts.length})</h2>
               ) : (
                 <>
                   {(() => {
-                    const collection = userCollections.find(
+                      const collection = userCollections.find(
                       (c) => c.id.toString() === selectedCollection,
                     )
                     if (collection) {
@@ -1890,19 +1856,19 @@ export default function CollectionPage() {
                                   <DropdownMenuItem key="bulk-taking-offers" onClick={() => handleBulkStatusChange("Taking Offers")}>
                                     Taking Offers
                                   </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuLabel>Collections</DropdownMenuLabel>
-                                  <DropdownMenuItem key="bulk-all-shirts" onClick={() => handleBulkCollectionMove(null)}>
-                                    Move to All Shirts
-                                  </DropdownMenuItem>
-                                  {userCollections.map((collection) => (
-                                    <DropdownMenuItem 
-                                      key={`bulk-collection-${collection.id}`} 
-                                      onClick={() => handleBulkCollectionMove(collection.id.toString())}
-                                    >
-                                      Move to {collection.name}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuLabel>Collections</DropdownMenuLabel>
+                                    <DropdownMenuItem key="bulk-all-shirts" onClick={() => handleBulkCollectionMove(null)}>
+                                      Move to All Shirts
                                     </DropdownMenuItem>
-                                  ))}
+                                    {userCollections.map((collection) => (
+                                      <DropdownMenuItem 
+                                        key={`bulk-collection-${collection.id}`} 
+                                        onClick={() => handleBulkCollectionMove(collection.id.toString())}
+                                      >
+                                        Move to {collection.name}
+                                      </DropdownMenuItem>
+                                    ))}
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem key="bulk-delete" onClick={handleBulkDelete} className="text-destructive">
                                     Delete Selected
@@ -1935,16 +1901,16 @@ export default function CollectionPage() {
                           className={`overflow-hidden ${selectedItems.includes(shirt.id) ? "ring-2 ring-primary/40" : ""}`}
                         >
                           <div className="relative aspect-square">
-                            {shirt.image ? (
-                              <Image
-                                src={shirt.image}
+                              {shirt.image ? (
+                                <Image
+                                  src={shirt.image}
                                 alt={shirt.name}
-                                fill
-                                className="object-cover"
+                                  fill
+                                  className="object-cover"
                               />
                             ) : (
                               <Image
-                                src="/placeholder.svg"
+                                  src="/placeholder.svg"
                                 alt={shirt.name}
                                 fill
                                 className="object-cover"
@@ -2004,7 +1970,7 @@ export default function CollectionPage() {
                             </div>
                           </CardContent>
                           <CardFooter className="p-4 pt-0 flex justify-between">
-                            <span className="text-sm text-muted-foreground">Added {new Date(shirt.date_added).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+                              <span className="text-sm text-muted-foreground">Added {new Date(shirt.date_added).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
                             <span className="font-medium">${shirt.estimated_value}</span>
                           </CardFooter>
                         </Card>
@@ -2047,19 +2013,19 @@ export default function CollectionPage() {
                                 <DropdownMenuItem key="bulk-taking-offers" onClick={() => handleBulkStatusChange("Taking Offers")}>
                                   Taking Offers
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuLabel>Collections</DropdownMenuLabel>
-                                <DropdownMenuItem key="bulk-all-shirts" onClick={() => handleBulkCollectionMove(null)}>
-                                  Move to All Shirts
-                                </DropdownMenuItem>
-                                {userCollections.map((collection) => (
-                                  <DropdownMenuItem 
-                                    key={`bulk-collection-${collection.id}`} 
-                                    onClick={() => handleBulkCollectionMove(collection.id.toString())}
-                                  >
-                                    Move to {collection.name}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuLabel>Collections</DropdownMenuLabel>
+                                  <DropdownMenuItem key="bulk-all-shirts" onClick={() => handleBulkCollectionMove(null)}>
+                                    Move to All Shirts
                                   </DropdownMenuItem>
-                                ))}
+                                  {userCollections.map((collection) => (
+                                    <DropdownMenuItem 
+                                      key={`bulk-collection-${collection.id}`} 
+                                      onClick={() => handleBulkCollectionMove(collection.id.toString())}
+                                    >
+                                      Move to {collection.name}
+                                    </DropdownMenuItem>
+                                  ))}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem key="bulk-delete" onClick={handleBulkDelete} className="text-destructive">
                                   Delete Selected
@@ -2292,28 +2258,28 @@ export default function CollectionPage() {
                               <th className="px-4 py-3 text-right font-medium">Actions</th>
                             )}
 
-                            {visibleColumns.includes("collection") && (
-                              <th className="px-4 py-3 text-left font-medium">Collection</th>
+                              {visibleColumns.includes("collection") && (
+                                <th className="px-4 py-3 text-left font-medium">Collection</th>
                             )}
                           </tr>
                         </thead>
                         <tbody className="divide-y">
                           {sortedTshirts.map((shirt) => (
-                            <tr key={shirt.id} className={`hover:bg-muted/50 ${selectedItems.includes(shirt.id) ? "bg-primary/5" : ""}`}>
-                              <td className="px-4 py-3"><Checkbox checked={selectedItems.includes(shirt.id)} onCheckedChange={() => toggleItemSelection(shirt.id)} aria-label={`Select ${shirt.name}`}/></td>
+                              <tr key={shirt.id} className={`hover:bg-muted/50 ${selectedItems.includes(shirt.id) ? "bg-primary/5" : ""}`}>
+                                <td className="px-4 py-3"><Checkbox checked={selectedItems.includes(shirt.id)} onCheckedChange={() => toggleItemSelection(shirt.id)} aria-label={`Select ${shirt.name}`}/></td>
                               {visibleColumns.includes("image") && (
                                 <td className="px-4 py-3">
                                   <div className="h-12 w-12 relative rounded overflow-hidden">
-                                    {shirt.image ? (
-                                      <Image
-                                        src={shirt.image}
+                                      {shirt.image ? (
+                                        <Image
+                                          src={shirt.image}
                                         alt={shirt.name}
-                                        fill
-                                        className="object-cover"
+                                          fill
+                                          className="object-cover"
                                       />
                                     ) : (
                                       <Image
-                                        src="/placeholder.svg"
+                                          src="/placeholder.svg"
                                         alt={shirt.name}
                                         fill
                                         className="object-cover"
@@ -2322,16 +2288,16 @@ export default function CollectionPage() {
                                   </div>
                                 </td>
                               )}
-                              {visibleColumns.includes("name") && <td className="px-4 py-3 max-w-[180px]"><div className="font-medium truncate" title={shirt.name}>{shirt.name}</div><div className="text-xs text-muted-foreground line-clamp-1">{shirt.description}</div></td>}
-                              {visibleColumns.includes("licensing") && <td className="px-4 py-3">{shirt.licensing}</td>}
-                              {visibleColumns.includes("year") && <td className="px-4 py-3">{shirt.year}</td>}
-                              {visibleColumns.includes("size") && <td className="px-4 py-3">{shirt.size}</td>}
-                              {visibleColumns.includes("condition") && <td className="px-4 py-3"><Badge variant="outline">{shirt.condition}</Badge></td>}
-                              {visibleColumns.includes("listing_status") && <td className="px-4 py-3"><ListingStatusBadge status={shirt.listing_status} price={shirt.price} itemId={shirt.id} onStatusChange={handleListingStatusChange}/></td>}
-                              {visibleColumns.includes("tags") && <td className="px-4 py-3"><div className="grid grid-cols-2 gap-x-1 gap-y-1 w-[120px]">{shirt.tags.slice(0, 4).map((tag) => (<Badge key={tag} variant="secondary" className="text-xs whitespace-nowrap inline-flex justify-center">{tag}</Badge>))}{shirt.tags.length > 4 && (<TooltipProvider><Tooltip><TooltipTrigger asChild><Badge variant="secondary" className="text-xs whitespace-nowrap col-span-2 justify-center cursor-help">+{shirt.tags.length - 4}</Badge></TooltipTrigger><TooltipContent><div className="flex flex-col gap-1"><p className="font-semibold text-xs">Additional tags:</p>{shirt.tags.slice(4).map((tag) => (<span key={tag} className="text-xs">{tag}</span>))}</div></TooltipContent></Tooltip></TooltipProvider>)}</div></td>}
-                              {visibleColumns.includes("date_added") && <td className="px-4 py-3 text-muted-foreground text-xs">{new Date(shirt.date_added).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>}
-                              {visibleColumns.includes("estimated_value") && <td className="px-4 py-3 text-right font-medium">${shirt.estimated_value}</td>}
-                              {visibleColumns.includes("actions") && <td className="px-4 py-3 text-right"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={async () => {
+                                {visibleColumns.includes("name") && <td className="px-4 py-3 max-w-[180px]"><div className="font-medium truncate" title={shirt.name}>{shirt.name}</div><div className="text-xs text-muted-foreground line-clamp-1">{shirt.description}</div></td>}
+                                {visibleColumns.includes("licensing") && <td className="px-4 py-3">{shirt.licensing}</td>}
+                                {visibleColumns.includes("year") && <td className="px-4 py-3">{shirt.year}</td>}
+                                {visibleColumns.includes("size") && <td className="px-4 py-3">{shirt.size}</td>}
+                                {visibleColumns.includes("condition") && <td className="px-4 py-3"><Badge variant="outline">{shirt.condition}</Badge></td>}
+                                {visibleColumns.includes("listing_status") && <td className="px-4 py-3"><ListingStatusBadge status={shirt.listing_status} price={shirt.price} itemId={shirt.id} onStatusChange={handleListingStatusChange}/></td>}
+                                {visibleColumns.includes("tags") && <td className="px-4 py-3"><div className="grid grid-cols-2 gap-x-1 gap-y-1 w-[120px]">{shirt.tags.slice(0, 4).map((tag) => (<Badge key={tag} variant="secondary" className="text-xs whitespace-nowrap inline-flex justify-center">{tag}</Badge>))}{shirt.tags.length > 4 && (<TooltipProvider><Tooltip><TooltipTrigger asChild><Badge variant="secondary" className="text-xs whitespace-nowrap col-span-2 justify-center cursor-help">+{shirt.tags.length - 4}</Badge></TooltipTrigger><TooltipContent><div className="flex flex-col gap-1"><p className="font-semibold text-xs">Additional tags:</p>{shirt.tags.slice(4).map((tag) => (<span key={tag} className="text-xs">{tag}</span>))}</div></TooltipContent></Tooltip></TooltipProvider>)}</div></td>}
+                                {visibleColumns.includes("date_added") && <td className="px-4 py-3 text-muted-foreground text-xs">{new Date(shirt.date_added).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>}
+                                {visibleColumns.includes("estimated_value") && <td className="px-4 py-3 text-right font-medium">${shirt.estimated_value}</td>}
+                                {visibleColumns.includes("actions") && <td className="px-4 py-3 text-right"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={async () => {
     try {
       // Find the current t-shirt
       const currentTshirt = tshirts.find(t => t.id === shirt.id);
@@ -2436,22 +2402,22 @@ export default function CollectionPage() {
     ))}
   </DropdownMenuSubContent>
 </DropdownMenuSub></DropdownMenuContent></DropdownMenu></td>}
-                              {visibleColumns.includes("collection") && (
+                                {visibleColumns.includes("collection") && (
                                 <td className="px-4 py-3">
-                                  <div className="flex flex-wrap gap-1">
-                                    {shirt.collections.length > 0 ? (
-                                      shirt.collections.map((collection) => (
-                                        <Badge 
-                                          key={collection.id} 
-                                          variant="outline" 
-                                          className="text-xs cursor-pointer hover:bg-accent"
-                                          onClick={() => setSelectedCollection(collection.id.toString())}
-                                        >
-                                          {collection.name}
-                                        </Badge>
-                                      ))
-                                    ) : (
-                                      <span className="text-muted-foreground text-xs">All Shirts</span>
+                                    <div className="flex flex-wrap gap-1">
+                                      {shirt.collections.length > 0 ? (
+                                        shirt.collections.map((collection) => (
+                                          <Badge 
+                                            key={collection.id} 
+                                            variant="outline" 
+                                            className="text-xs cursor-pointer hover:bg-accent"
+                                            onClick={() => setSelectedCollection(collection.id.toString())}
+                                          >
+                                            {collection.name}
+                                      </Badge>
+                                        ))
+                                      ) : (
+                                        <span className="text-muted-foreground text-xs">All Shirts</span>
                                     )}
                                   </div>
                                 </td>
@@ -2477,6 +2443,7 @@ export default function CollectionPage() {
                 </p>
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>
@@ -2629,6 +2596,29 @@ export default function CollectionPage() {
                           <option value="Private">Private</option>
                           <option value="For Sale">For Sale</option>
                           <option value="Taking Offers">Taking Offers</option>
+                        </select>
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        <Label htmlFor={`item-${item.id}-collection`}>Collection</Label>
+                        <select
+                          id={`item-${item.id}-collection`}
+                          name={`item-${item.id}-collection`}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          defaultValue={selectedCollection !== "all" ? selectedCollection : ""}
+                          onChange={(e) => {
+                            const collectionSelect = e.target;
+                            const newItems = [...formItems];
+                            newItems[index].values.collection_id = collectionSelect.value;
+                            setFormItems(newItems);
+                          }}
+                        >
+                          <option value="">All Shirts</option>
+                          {userCollections.map((collection) => (
+                            <option key={collection.id} value={collection.id.toString()}>
+                              {collection.name}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       
