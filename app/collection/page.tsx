@@ -104,7 +104,7 @@ import {
 interface TShirt {
   id: number
   name: string
-  licensing: string
+  licensing: string[]  // Changed from string to string[]
   year: number
   condition: string
   size: string
@@ -497,7 +497,7 @@ export default function CollectionPage() {
   const [tshirts, setTshirts] = useState<TShirt[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list")
   const [selectedCollection, setSelectedCollection] = useState<string>("all")
   const [userCollections, setUserCollections] = useState<Collection[]>([])
   const [isNewCollectionOpen, setIsNewCollectionOpen] = useState(false)
@@ -654,7 +654,9 @@ export default function CollectionPage() {
   }, [])
 
   // Get unique values for filters
-  const uniqueBrands = Array.from(new Set(tshirts.map((shirt) => shirt.licensing)))  // Changed to use licensing property
+  const uniqueBrands = Array.from(new Set(tshirts.flatMap((shirt) => 
+    typeof shirt.licensing === 'string' ? [shirt.licensing] : shirt.licensing
+  )))
   const uniqueYears = Array.from(new Set(tshirts.map((shirt) => shirt.year?.toString() || '')))
   const uniqueConditions = Array.from(new Set(tshirts.map((shirt) => shirt.condition)))
   const uniqueSizes = Array.from(new Set(tshirts.map((shirt) => shirt.size)))
@@ -673,11 +675,15 @@ export default function CollectionPage() {
       );
     }
     
-    // Fix any other filters to use "tshirt" instead of "shirt"
+    // Filter by search query
     if (searchQuery) {
-      filtered = filtered.filter((tshirt) => 
-        tshirt.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      filtered = filtered.filter((tshirt) => {
+        const searchLower = searchQuery.toLowerCase();
+        const licensingValues = typeof tshirt.licensing === 'string' ? [tshirt.licensing] : tshirt.licensing;
+        return tshirt.name.toLowerCase().includes(searchLower) ||
+          licensingValues.some(l => l.toLowerCase().includes(searchLower)) ||
+          tshirt.tags.some(tag => tag.toLowerCase().includes(searchLower));
+      });
     }
     
     return filtered;
@@ -718,7 +724,7 @@ export default function CollectionPage() {
   const handleSort = (field: string) => {
     // Check if the field is sortable
     const column = availableColumns.find((col) => col.id === field)
-    if (!column?.sortable) return
+    if (!column?.sortable) return       
 
     // Update sort state
     if (sortField === field) {
@@ -924,10 +930,10 @@ export default function CollectionPage() {
       selectedItems.length > 0 ? sortedTshirts.filter((shirt) => selectedItems.includes(shirt.id)) : sortedTshirts
 
     // Create CSV content
-    const csvHeader = "ID,Name,Licensing,Year,Condition,Size,Tags,Date Added,Estimated Value,Listing Status\n"  // Changed header to use licensing
+    const csvHeader = "ID,Name,Licensing,Year,Condition,Size,Tags,Date Added,Estimated Value,Listing Status\n"
     const csvContent = itemsToExport
       .map((shirt) => {
-        return `${shirt.id},"${shirt.name}","${shirt.licensing}",${shirt.year},"${shirt.condition}","${shirt.size}","${shirt.tags.join("|")}","${shirt.date_added}",${shirt.estimated_value},"${shirt.listing_status}"`  // Changed to use licensing property
+        return `${shirt.id},"${shirt.name}","${shirt.licensing.join("|")}",${shirt.year},"${shirt.condition}","${shirt.size}","${shirt.tags.join("|")}","${shirt.date_added}",${shirt.estimated_value},"${shirt.listing_status}"`
       })
       .join("\n")
 
@@ -1085,22 +1091,39 @@ export default function CollectionPage() {
       for (const item of filteredItems) {
         const nameInput = document.getElementById(`item-${item.id}-name`) as HTMLInputElement;
         const collectionSelect = document.getElementById(`item-${item.id}-collection`) as HTMLSelectElement;
+        const listingStatusSelect = document.getElementById(`item-${item.id}-listing-status`) as HTMLSelectElement;
+        const conditionSelect = document.getElementById(`item-${item.id}-condition`) as HTMLSelectElement;
+        const sizeSelect = document.getElementById(`item-${item.id}-size`) as HTMLSelectElement;
+        const yearInput = document.getElementById(`item-${item.id}-year`) as HTMLInputElement;
+        const licensingInput = document.getElementById(`item-${item.id}-licensing`) as HTMLInputElement;
+        const estimatedValueInput = document.getElementById(`item-${item.id}-value`) as HTMLInputElement;
+        const descriptionInput = document.getElementById(`item-${item.id}-description`) as HTMLTextAreaElement;
+        const tagsInput = document.getElementById(`item-${item.id}-tags`) as HTMLInputElement;
+
         const name = nameInput?.value.trim();
         const collectionId = collectionSelect?.value;
+        const listingStatus = listingStatusSelect?.value || 'Public';
+        const condition = conditionSelect?.value || '';
+        const size = sizeSelect?.value || '';
+        const year = yearInput?.value ? parseInt(yearInput.value) : null;
+        const licensing = licensingInput?.value ? licensingInput.value.split(',').map(l => l.trim()) : [];
+        const estimatedValue = estimatedValueInput?.value ? parseFloat(estimatedValueInput.value) : 0;
+        const description = descriptionInput?.value || '';
+        const tags = tagsInput?.value ? tagsInput.value.split(',').map(tag => tag.trim()) : [];
         
         if (!name) continue;
 
         // Create the t-shirt record
         const newItem = {
           name,
-          licensing: '',
-          year: new Date().getFullYear(),
-          condition: 'Good',
-          size: 'L',
-          description: '',
-          estimated_value: 0,
-          tags: [],
-          listing_status: 'Public',
+          licensing,
+          year: year || null, // Ensure year is null if not provided
+          condition,
+          size,
+          description,
+          estimated_value: estimatedValue,
+          tags,
+          listing_status: listingStatus,
           price: null,
           user_id: user.id,
           date_added: new Date().toISOString()
@@ -1179,7 +1202,7 @@ export default function CollectionPage() {
         const newTshirt = {
           ...tshirtData,
           collections: selectedCollectionObj ? [selectedCollectionObj] : [],
-          image: imageUrl || "https://sdmntprwestus.oaiusercontent.com/files/00000000-b1a8-5230-9a33-8d0232019a5f/raw?se=2025-03-25T23%3A45%3A28Z&sp=r&sv=2024-08-04&sr=b&scid=35598117-395a-59d8-a5cb-86eaf280ea73&skoid=e825dac8-9fae-4e05-9fdb-3d74e1880d5a&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-03-25T20%3A48%3A06Z&ske=2025-03-26T20%3A48%3A06Z&sks=b&skv=2024-08-04&sig=psPavEWQA3Tr2Vce2yxy3ylFO8JFlpy62JmWPvXx0TM%3D"
+          image: imageUrl || "https://sdmntprwestus.oaiusercontent.com/files/00000000-b1a8-5230-9a33-8d0232019a5f/raw?se=2025-03-28T20%3A31%3A18Z&sp=r&sv=2024-08-04&sr=b&scid=8157505d-4747-5ad1-bef6-3270ff39e9bf&skoid=aa8389fc-fad7-4f8c-9921-3c583664d512&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-03-28T19%3A09%3A20Z&ske=2025-03-29T19%3A09%3A20Z&sks=b&skv=2024-08-04&sig=EKWBNrvKR19KQvKAkGwBhLXv4nVPQrbzGghlzr/ctnA%3D"
         };
         
         setTshirts(prev => [newTshirt, ...prev]);
@@ -1226,8 +1249,8 @@ export default function CollectionPage() {
       const name = formElements['item-name'].value;
 
       // Optional fields with null checks
-      const licensing = optionalFields.licensing ? formElements['item-licensing']?.value || '' : '';
-      const year = optionalFields.year ? parseInt(formElements['item-year']?.value || '0') : null;
+      const licensing = optionalFields.licensing ? (formElements['item-licensing']?.value || '').split(',').map(l => l.trim()) : [];
+      const year = optionalFields.year ? parseInt(formElements['item-year']?.value || '0') || null : null;
       const condition = optionalFields.condition ? formElements['item-condition']?.value || '' : '';
       const size = optionalFields.size ? formElements['item-size']?.value || '' : '';
       const description = optionalFields.description ? formElements['item-description']?.value || '' : '';
@@ -1928,7 +1951,14 @@ export default function CollectionPage() {
                           <CardHeader className="p-4">
                             <CardTitle className="text-lg">{shirt.name}</CardTitle>
                             <CardDescription>
-                              {shirt.licensing} • {shirt.year}  // Changed from brand to licensing
+                              <div className="flex flex-wrap gap-1">
+                                {(typeof shirt.licensing === 'string' ? [shirt.licensing] : shirt.licensing).map((l, index) => (
+                                  <Badge key={index} variant="secondary" className="text-xs">
+                                    {l}
+                                  </Badge>
+                                ))}
+                              </div>
+                              {shirt.year && <span className="mt-1 block">{shirt.year}</span>}
                             </CardDescription>
                           </CardHeader>
                           <CardContent className="p-4 pt-0">
@@ -2289,7 +2319,17 @@ export default function CollectionPage() {
                                 </td>
                               )}
                                 {visibleColumns.includes("name") && <td className="px-4 py-3 max-w-[180px]"><div className="font-medium truncate" title={shirt.name}>{shirt.name}</div><div className="text-xs text-muted-foreground line-clamp-1">{shirt.description}</div></td>}
-                                {visibleColumns.includes("licensing") && <td className="px-4 py-3">{shirt.licensing}</td>}
+                                {visibleColumns.includes("licensing") && (
+                                  <td className="px-4 py-3">
+                                    <div className="flex flex-wrap gap-1">
+                                      {(typeof shirt.licensing === 'string' ? [shirt.licensing] : shirt.licensing).map((l, index) => (
+                                        <Badge key={index} variant="secondary" className="text-xs">
+                                          {l}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </td>
+                                )}
                                 {visibleColumns.includes("year") && <td className="px-4 py-3">{shirt.year}</td>}
                                 {visibleColumns.includes("size") && <td className="px-4 py-3">{shirt.size}</td>}
                                 {visibleColumns.includes("condition") && <td className="px-4 py-3"><Badge variant="outline">{shirt.condition}</Badge></td>}
@@ -2432,15 +2472,12 @@ export default function CollectionPage() {
               </>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="rounded-full bg-muted p-3 mb-4">
-                  <Tag className="h-6 w-6 text-muted-foreground" />
+                <div className="mb-4 text-lg text-muted-foreground">
+                  Hmmm, looks like your collection is empty!
                 </div>
-                <h3 className="text-lg font-medium">No items found</h3>
-                <p className="text-muted-foreground max-w-md mt-2 mb-4">
-                  {searchQuery || Object.values(activeFilters).some((arr) => arr.length > 0)
-                    ? "Try adjusting your search or filters to find what you're looking for."
-                    : "Your collection is empty."}
-                </p>
+                <Button onClick={() => setIsQuickAddOpen(true)}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Quick Add
+                </Button>
               </div>
             )}
             </div>

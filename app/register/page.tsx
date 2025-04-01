@@ -21,9 +21,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     
-    // Don't proceed if already loading
     if (isLoading) return
-    
     setIsLoading(true)
 
     try {
@@ -32,6 +30,7 @@ export default function RegisterPage() {
       const password = formData.get('password') as string
       const confirmPassword = formData.get('confirmPassword') as string
       const username = formData.get('username') as string
+      const inviteCode = formData.get('inviteCode') as string
 
       if (password !== confirmPassword) {
         toast.error('Passwords do not match')
@@ -39,22 +38,43 @@ export default function RegisterPage() {
       }
 
       // Check if username is already taken
-      const { data: existingUser } = await supabase
+      const { data: existingUser, error: usernameError } = await supabase
         .from('profiles')
         .select('username')
         .eq('username', username)
         .single()
+
+      if (usernameError && !usernameError.message.includes('No rows found')) {
+        console.error('Username check error:', usernameError)
+        toast.error('Error checking username availability')
+        return
+      }
 
       if (existingUser) {
         toast.error('Username is already taken')
         return
       }
 
+      // Validate invite code
+      const { data: isValid, error: codeError } = await supabase.rpc('check_invite_code', {
+        code: inviteCode
+      })
+
+      if (codeError || !isValid) {
+        toast.error('Invalid or expired invite code')
+        return
+      }
+
+      // Sign up the user
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            username,
+            used_invite_code: inviteCode
+          }
         },
       })
 
@@ -64,17 +84,17 @@ export default function RegisterPage() {
       }
 
       if (data?.user) {
-        // Create profile with username
+        // Insert the profile instead of updating
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
-            id: data.user.id,
-            username,
-            email: data.user.email
+            user_id: data.user.id,
+            username: username,
+            used_invite_code: inviteCode
           })
 
         if (profileError) {
-          console.error('Profile creation error:', profileError)
+          console.error('Error creating profile:', profileError)
           toast.error('Failed to create profile')
           return
         }
@@ -85,8 +105,8 @@ export default function RegisterPage() {
         toast.error('Failed to create account')
       }
     } catch (error) {
-      toast.error('An unexpected error occurred')
       console.error('Registration error:', error)
+      toast.error('An unexpected error occurred')
     } finally {
       setIsLoading(false)
     }
@@ -134,6 +154,19 @@ export default function RegisterPage() {
                 <div className="grid gap-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input name="confirmPassword" id="confirmPassword" type="password" autoComplete="new-password" required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="inviteCode">Invite Code</Label>
+                  <Input 
+                    name="inviteCode" 
+                    id="inviteCode" 
+                    type="text" 
+                    placeholder="Enter your invite code"
+                    required 
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Need an invite code? Ask a friend for their code.
+                  </p>
                 </div>
               </div>
             </CardContent>

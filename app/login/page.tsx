@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,53 +15,103 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
 
+// Ensure we have the correct URL format
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+if (!supabaseUrl?.startsWith('https://')) {
+  console.error('Invalid Supabase URL format:', supabaseUrl)
+}
+
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
+  const redirectTo = searchParams.get('redirectTo') || '/collection'
+
+  // Log Supabase configuration
+  useEffect(() => {
+    console.log('Supabase Configuration:', {
+      url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    })
+  }, [])
+
+  // Check for error params
+  useEffect(() => {
+    const error = searchParams.get('error')
+    console.log('URL error param:', error)
+    if (error === 'auth_callback_failed') {
+      toast.error('Authentication failed. Please try again.')
+    } else if (error === 'session_error') {
+      toast.error('Session error. Please sign in again.')
+    }
+  }, [searchParams])
 
   // Check if user is already logged in
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        router.push('/collection')
+      console.log('Checking session...')
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        console.log('Session check result:', { 
+          session: !!session, 
+          error,
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL 
+        })
+        if (error) {
+          console.error('Session check error:', error)
+          return
+        }
+        if (session) {
+          console.log('Session found, redirecting to:', redirectTo)
+          router.push(redirectTo)
+        }
+      } catch (error) {
+        console.error('Session check failed:', error)
       }
     }
     checkSession()
-  }, [router, supabase])
+  }, [router, supabase, redirectTo])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     
-    // Don't proceed if already loading
     if (isLoading) return
     
     setIsLoading(true)
+    console.log('Starting sign in process...')
 
     try {
       const formData = new FormData(e.currentTarget)
       const email = formData.get('email') as string
       const password = formData.get('password') as string
 
+      console.log('Attempting sign in for email:', email)
+      console.log('Using Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
+      console.log('Sign in result:', { success: !!data?.session, error })
+
       if (error) {
+        console.error('Sign in error:', error)
         if (error.message.includes('Email not confirmed')) {
           toast.error(
             'Please confirm your email address before signing in. Check your inbox for the confirmation link.',
             { duration: 6000 }
           )
-          // Optionally, offer to resend confirmation email
+          console.log('Attempting to resend confirmation email...')
           const { error: resendError } = await supabase.auth.resend({
             type: 'signup',
             email,
           })
           if (!resendError) {
             toast.info('A new confirmation email has been sent.', { duration: 4000 })
+          } else {
+            console.error('Error resending confirmation:', resendError)
           }
         } else {
           toast.error('Failed to sign in. Please check your credentials.')
@@ -70,17 +120,17 @@ export default function LoginPage() {
       }
 
       if (data?.session) {
+        console.log('Session established, refreshing and redirecting...')
         toast.success('Signed in successfully')
-        // Use router.refresh() to update server components
         router.refresh()
-        // Then navigate to collection
-        router.push('/collection')
+        router.push(redirectTo)
       } else {
+        console.error('No session after successful sign in')
         toast.error('Failed to establish session')
       }
     } catch (error) {
+      console.error('Unexpected sign in error:', error)
       toast.error('An unexpected error occurred')
-      console.error('Sign in error:', error)
     } finally {
       setIsLoading(false)
     }
@@ -88,12 +138,18 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('Starting Google sign in...')
+      const redirectUrl = `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+      console.log('Google sign in redirect URL:', redirectUrl)
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectUrl,
         },
       })
+
+      console.log('Google sign in result:', { data, error })
       if (error) throw error
     } catch (error) {
       console.error('Google sign in error:', error)
@@ -123,7 +179,7 @@ export default function LoginPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="remember" />
+                    <Checkbox id="remember" name="remember" />
                     <Label htmlFor="remember" className="text-sm">Remember me</Label>
                   </div>
                   <Link href="/forgot-password" className="text-sm text-primary hover:underline">

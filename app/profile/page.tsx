@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 interface Profile {
   id: string
+  user_id: string
   username: string | null
   email: string
   full_name: string | null
@@ -45,6 +46,8 @@ interface Profile {
   }
   featured_shirts: number[]
   featured_collections: number[]
+  invite_code: string | null
+  used_invite_code: string | null
 }
 
 interface CollectionStats {
@@ -57,7 +60,7 @@ interface CollectionStats {
 interface TShirt {
   id: number
   name: string
-  brand: string
+  licensing: string[]
   year: number
   condition: string
   size: string
@@ -70,7 +73,6 @@ interface TShirt {
   price: number | null
   user_id: string
   collection_id: number | null
-  licensing: string
 }
 
 interface Collection {
@@ -84,6 +86,16 @@ interface Collection {
   color: string
 }
 
+interface InviteCodeUse {
+  id: string
+  user: {
+    username: string | null
+    full_name: string | null
+    avatar_url: string | null
+  }
+  used_at: string
+}
+
 export default function ProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -92,7 +104,6 @@ export default function ProfilePage() {
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
-  const supabase = createClientComponentClient()
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editedProfile, setEditedProfile] = useState<Partial<Profile>>({})
@@ -103,6 +114,9 @@ export default function ProfilePage() {
   const [isFeaturedCollectionsOpen, setIsFeaturedCollectionsOpen] = useState(false)
   const [tshirts, setTshirts] = useState<TShirt[]>([])
   const [userCollections, setUserCollections] = useState<Collection[]>([])
+  const [inviteCodeUses, setInviteCodeUses] = useState<InviteCodeUse[]>([])
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false)
+  const supabase = createClientComponentClient()
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click()
@@ -170,7 +184,7 @@ export default function ProfilePage() {
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ avatar_url: publicUrl })
-        .eq('id', user.id)
+        .eq('user_id', user.id)
 
       if (updateError) {
         console.error('Profile update error:', updateError)
@@ -191,36 +205,64 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError) {
-          console.error('Auth error:', userError)
-          throw userError
-        }
+        // Get the current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (!user) {
-          console.log('No user found, redirecting to login')
+        if (sessionError) {
+          console.error('Session error:', sessionError.message)
+          throw sessionError
+        }
+
+        if (!session) {
+          console.log('No session found, redirecting to login')
           router.push('/login')
           return
         }
 
-        console.log('Fetching profile for user:', user.id)
-        const { data: profileData, error: profileError } = await supabase
+        console.log('Fetching profile for user:', session.user.id)
+        // Get the user's profile
+        const { data: existingProfile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', user.id)
+          .eq('user_id', session.user.id)
           .single()
 
-        if (profileError) {
-          console.error('Profile fetch error:', profileError)
+        if (profileError && !profileError.message.includes('No rows found')) {
+          console.error('Error fetching profile:', profileError.message, profileError.details, profileError.hint)
           throw profileError
         }
 
+        let profileData = existingProfile
         if (!profileData) {
-          console.error('No profile found for user:', user.id)
-          throw new Error('Profile not found')
+          console.log('No profile found, creating default profile')
+          // Create a default profile if none exists
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert([
+              {
+                user_id: session.user.id,
+                username: session.user.email?.split('@')[0],
+                collection_overview_preferences: {
+                  showTotalItems: true,
+                  showEstimatedValue: true,
+                  showLicensing: true,
+                  showTags: true,
+                  order: ['totalItems', 'estimatedValue', 'licensing', 'tags']
+                }
+              }
+            ])
+            .select()
+            .single()
+
+          if (createError) {
+            console.error('Error creating profile:', createError.message, createError.details, createError.hint)
+            throw createError
+          }
+
+          profileData = newProfile
         }
 
-        // Add default values for collection_overview_preferences if they don't exist
+        // Set default values for collection preferences
         const profileWithDefaults = {
           ...profileData,
           collection_overview_preferences: profileData.collection_overview_preferences || {
@@ -231,94 +273,87 @@ export default function ProfilePage() {
             order: ['totalItems', 'estimatedValue', 'licensing', 'tags']
           },
           featured_shirts: profileData.featured_shirts || [],
-          featured_collections: profileData.featured_collections || []
+          featured_collections: profileData.featured_collections || [],
+          invite_code: profileData.invite_code || null,
+          used_invite_code: profileData.used_invite_code || null
         }
 
-        console.log('Profile data:', profileWithDefaults)
         setProfile(profileWithDefaults)
 
-        // Try to fetch collection stats, but don't throw if the table doesn't exist
-        try {
-          console.log('Fetching collection stats')
-          const { data: items, error: itemsError } = await supabase
-            .from('t_shirts')
-            .select('*')
-            .eq('user_id', user.id)
-
-          if (itemsError) {
-            console.warn('Collection stats not available:', itemsError)
-            // Set default empty stats
-            setStats({
-              totalItems: 0,
-              totalValue: 0,
-              licensing: [],
-              tags: []
-            })
-            return
-          }
-
-          console.log('Collection items:', items)
-          const totalItems = items.length
-          const totalValue = items.reduce((sum, item) => sum + (Number(item.estimated_value) || 0), 0)
-          
-          // Calculate licensing
-          const licensingCounts = items.reduce((acc, item) => {
-            acc[item.licensing] = (acc[item.licensing] || 0) + 1
-            return acc
-          }, {} as Record<string, number>)
-
-          const licensing = Object.entries(licensingCounts).map(([name, count]) => ({
-            name,
-            count: count as number
-          }))
-
-          // Calculate tags
-          const tagCounts = items.reduce((acc, item) => {
-            item.tags.forEach((tag: string) => {
-              acc[tag] = (acc[tag] || 0) + 1
-            })
-            return acc
-          }, {} as Record<string, number>)
-
-          const tags = Object.entries(tagCounts)
-            .sort((a, b) => (b[1] as number) - (a[1] as number)) // Sort by count in descending order
-            .slice(0, 10) // Take top 10 tags
-            .map(([name, count]) => ({
-              name,
-              count: count as number
-            }))
-
-          const statsData = {
-            totalItems,
-            totalValue,
-            licensing,
-            tags
-          }
-          console.log('Stats data:', statsData)
-          setStats(statsData)
-        } catch (error) {
-          console.warn('Collection stats not available:', error)
-          // Set default empty stats
-          setStats({
-            totalItems: 0,
-            totalValue: 0,
-            licensing: [],
-            tags: []
-          })
-        }
+        // Fetch collection stats if profile exists
+        await fetchCollectionStats(session.user.id)
       } catch (err) {
-        console.error('Error fetching profile:', err)
-        if (err instanceof Error) {
-          console.error('Error details:', err.message)
-        }
-        setError('Failed to load profile data')
+        console.error('Error in fetchProfile:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load profile')
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchProfile()
-  }, [router, supabase])
+  }, [router])
+
+  const fetchCollectionStats = async (userId: string) => {
+    try {
+      const { data: items, error: itemsError } = await supabase
+        .from('t_shirts')
+        .select('*')
+        .eq('user_id', userId)
+
+      if (itemsError) throw itemsError
+
+      const totalItems = items?.length || 0
+      const totalValue = items?.reduce((sum, item) => sum + (Number(item.estimated_value) || 0), 0) || 0
+
+      // Calculate licensing stats
+      const licensingCounts = items?.reduce((acc: Record<string, number>, item) => {
+        const licensingValues = typeof item.licensing === 'string' ? [item.licensing] : item.licensing;
+        licensingValues.forEach((l: string) => {
+          acc[l] = (acc[l] || 0) + 1;
+        });
+        return acc;
+      }, {}) || {};
+
+      const licensing = Object.entries(licensingCounts)
+        .sort((a, b) => (b[1] as number) - (a[1] as number))
+        .map(([name, count]) => ({
+          name,
+          count: count as number
+        }));
+
+      // Calculate tag stats
+      const tagCounts = items?.reduce((acc: Record<string, number>, item) => {
+        const tags = Array.isArray(item.tags) ? item.tags : []
+        tags.forEach((tag: string) => {
+          acc[tag] = (acc[tag] || 0) + 1
+        })
+        return acc
+      }, {}) || {}
+
+      const tags = Object.entries(tagCounts)
+        .sort((a, b) => (b[1] as number) - (a[1] as number))
+        .slice(0, 10)
+        .map(([name, count]) => ({
+          name,
+          count: count as number
+        }))
+
+      setStats({
+        totalItems,
+        totalValue,
+        licensing,
+        tags
+      })
+    } catch (err) {
+      console.error('Error fetching collection stats:', err)
+      setStats({
+        totalItems: 0,
+        totalValue: 0,
+        licensing: [],
+        tags: []
+      })
+    }
+  }
 
   const handleSave = async () => {
     if (!profile) return
@@ -336,7 +371,7 @@ export default function ProfilePage() {
       const { data, error } = await supabase
         .from('profiles')
         .update(editedProfile)
-        .eq('id', profile.id)
+        .eq('user_id', profile.user_id)
         .select()
         .single()
 
@@ -409,7 +444,7 @@ export default function ProfilePage() {
       const { data, error } = await supabase
         .from('profiles')
         .update({ collection_overview_preferences: preferences })
-        .eq('id', profile.id)
+        .eq('user_id', profile.user_id)
         .select()
         .single()
 
@@ -440,7 +475,7 @@ export default function ProfilePage() {
       const { data, error } = await supabase
         .from('profiles')
         .update({ [`featured_${type}`]: ids })
-        .eq('id', profile.id)
+        .eq('user_id', profile.user_id)
         .select()
         .single()
 
@@ -470,7 +505,7 @@ export default function ProfilePage() {
       const { data: shirts, error: shirtsError } = await supabase
         .from('t_shirts')
         .select('*')
-        .eq('user_id', profile.id)
+        .eq('user_id', profile.user_id)
 
       if (!shirtsError && shirts) {
         setTshirts(shirts)
@@ -480,7 +515,7 @@ export default function ProfilePage() {
       const { data: collections, error: collectionsError } = await supabase
         .from('collections')
         .select('*')
-        .eq('user_id', profile.id)
+        .eq('user_id', profile.user_id)
 
       if (!collectionsError && collections) {
         setUserCollections(collections)
@@ -490,14 +525,111 @@ export default function ProfilePage() {
     fetchTshirtsAndCollections()
   }, [profile])
 
+  const generateInviteCode = async () => {
+    try {
+      setIsGeneratingCode(true);
+      
+      // Check if user already has an invite code
+      if (profile?.invite_code) {
+        console.log('User already has an invite code:', profile.invite_code);
+        toast.error('You already have an invite code');
+        return;
+      }
+
+      // Generate a random code
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      console.log('Generated new code:', code);
+
+      // Update the user's profile with the new code
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ invite_code: code })
+        .eq('user_id', profile?.user_id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error saving invite code:', error);
+        throw error;
+      }
+
+      console.log('Successfully saved code:', data);
+
+      // Update local profile state
+      setProfile(prev => prev ? { ...prev, invite_code: code } : null);
+      toast.success('Invite code generated successfully!');
+    } catch (error) {
+      console.error('Error in generateInviteCode:', error);
+      toast.error('Failed to generate invite code');
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
+
+  const fetchInviteCodeUses = async () => {
+    if (!profile?.invite_code) {
+      console.log('No invite code in profile, skipping fetch');
+      setInviteCodeUses([]);
+      return;
+    }
+    
+    try {
+      console.log('Fetching uses for invite code:', profile.invite_code);
+
+      // Get all profiles that used this invite code
+      const { data: uses, error: usesError } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          username,
+          full_name,
+          avatar_url,
+          created_at
+        `)
+        .eq('used_invite_code', profile.invite_code)
+        .order('created_at', { ascending: false });
+
+      if (usesError) {
+        console.error('Error fetching invite code uses:', usesError);
+        throw usesError;
+      }
+
+      console.log('Raw invite code uses data:', uses);
+
+      // Transform the data to match our InviteCodeUse type
+      const transformedUses: InviteCodeUse[] = (uses || []).map((use: any) => ({
+        id: use.id,
+        used_at: use.created_at,
+        user: {
+          username: use.username,
+          full_name: use.full_name,
+          avatar_url: use.avatar_url
+        }
+      }));
+
+      console.log('Transformed invite code uses:', transformedUses);
+      setInviteCodeUses(transformedUses);
+    } catch (error) {
+      console.error('Error in fetchInviteCodeUses:', error);
+      setInviteCodeUses([]);
+      toast.error('Failed to fetch invite code uses');
+    }
+  };
+
+  useEffect(() => {
+    if (profile?.invite_code) {
+      fetchInviteCodeUses();
+    }
+  }, [profile?.invite_code]);
+
   if (isLoading) {
   return (
     <div className="container py-8">
         <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
                 </div>
-    )
+    );
   }
 
   if (error) {
@@ -505,19 +637,20 @@ export default function ProfilePage() {
       <div className="container py-8">
         <div className="text-center text-red-500">{error}</div>
         </div>
-    )
+    );
   }
 
   if (!profile) {
-    return null
+    return null;
   }
 
   return (
     <div className="container py-8">
       <Tabs defaultValue="my-profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="my-profile">My Profile</TabsTrigger>
           <TabsTrigger value="public-profile">Public Profile</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
         <TabsContent value="my-profile" className="space-y-6">
@@ -571,7 +704,7 @@ export default function ProfilePage() {
                     <Label htmlFor="username">Username</Label>
                     <Input
                       id="username"
-                      value={editedProfile.username || profile.username || ''}
+                      value={editedProfile.username ?? profile.username ?? ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, username: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Choose a username"
@@ -582,7 +715,7 @@ export default function ProfilePage() {
                     <Label htmlFor="full_name">Full Name</Label>
                     <Input
                       id="full_name"
-                      value={editedProfile.full_name || profile.full_name || ''}
+                      value={editedProfile.full_name ?? profile.full_name ?? ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, full_name: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Your full name"
@@ -594,7 +727,7 @@ export default function ProfilePage() {
                     <Input
                       id="email"
                       type="email"
-                      value={profile.email}
+                      value={profile.email ?? ''}
                       disabled
                     />
                         </div>
@@ -603,7 +736,7 @@ export default function ProfilePage() {
                     <Label htmlFor="bio">Bio</Label>
                     <Textarea
                       id="bio"
-                      value={editedProfile.bio || profile.bio || ''}
+                      value={editedProfile.bio ?? profile.bio ?? ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, bio: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Tell us about yourself"
@@ -617,7 +750,7 @@ export default function ProfilePage() {
                     <Label htmlFor="location">Location</Label>
                     <Input
                       id="location"
-                      value={editedProfile.location || profile.location || ''}
+                      value={editedProfile.location ?? profile.location ?? ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, location: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Where are you based?"
@@ -628,7 +761,7 @@ export default function ProfilePage() {
                     <Label htmlFor="website">Website</Label>
                     <Input
                       id="website"
-                      value={editedProfile.website || profile.website || ''}
+                      value={editedProfile.website ?? profile.website ?? ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, website: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Your personal website"
@@ -639,7 +772,7 @@ export default function ProfilePage() {
                     <Label htmlFor="instagram">Instagram</Label>
                     <Input
                       id="instagram"
-                      value={editedProfile.instagram || profile.instagram || ''}
+                      value={editedProfile.instagram ?? profile.instagram ?? ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, instagram: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Your Instagram username"
@@ -650,7 +783,7 @@ export default function ProfilePage() {
                     <Label htmlFor="twitter">Twitter</Label>
                     <Input
                       id="twitter"
-                      value={editedProfile.twitter || profile.twitter || ''}
+                      value={editedProfile.twitter ?? profile.twitter ?? ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, twitter: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Your Twitter username"
@@ -661,7 +794,7 @@ export default function ProfilePage() {
                     <Label htmlFor="facebook">Facebook</Label>
                     <Input
                       id="facebook"
-                      value={editedProfile.facebook || profile.facebook || ''}
+                      value={editedProfile.facebook ?? profile.facebook ?? ''}
                       onChange={(e) => setEditedProfile({ ...editedProfile, facebook: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Your Facebook username"
@@ -727,10 +860,10 @@ export default function ProfilePage() {
                         ))}
                     </div>
                         </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                        </div>
+                        </div>
+              </CardContent>
+            </Card>
           )}
           </TabsContent>
 
@@ -746,29 +879,29 @@ export default function ProfilePage() {
                   <div className="space-y-0.5">
                     <Label>Show Email</Label>
                     <p className="text-sm text-muted-foreground">Display your email address on your public profile</p>
-                  </div>
+                        </div>
                   <Switch
                     checked={profile.show_email}
                     onCheckedChange={(checked) => setEditedProfile({ ...editedProfile, show_email: checked })}
                         />
-                      </div>
+                        </div>
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Show Location</Label>
                     <p className="text-sm text-muted-foreground">Display your location on your public profile</p>
-                      </div>
+                        </div>
                   <Switch
                     checked={profile.show_location}
                     onCheckedChange={(checked) => setEditedProfile({ ...editedProfile, show_location: checked })}
                   />
-                    </div>
+                        </div>
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Show Website</Label>
                     <p className="text-sm text-muted-foreground">Display your website on your public profile</p>
-                  </div>
+                        </div>
                   <Switch
                     checked={profile.show_website}
                     onCheckedChange={(checked) => setEditedProfile({ ...editedProfile, show_website: checked })}
@@ -779,13 +912,13 @@ export default function ProfilePage() {
                   <div className="space-y-0.5">
                     <Label>Show Social Links</Label>
                     <p className="text-sm text-muted-foreground">Display your social media links on your public profile</p>
-                      </div>
+                    </div>
                   <Switch
                     checked={profile.show_social}
                     onCheckedChange={(checked) => setEditedProfile({ ...editedProfile, show_social: checked })}
                   />
-                    </div>
                   </div>
+            </div>
 
               {Object.keys(editedProfile).length > 0 && (
                 <div className="flex justify-end gap-2 pt-4">
@@ -793,10 +926,10 @@ export default function ProfilePage() {
                     Cancel
                   </Button>
                   <Button onClick={handleSave}>Save Changes</Button>
-                </div>
+                    </div>
               )}
-            </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
               <Card>
                 <CardHeader>
@@ -894,7 +1027,7 @@ export default function ProfilePage() {
                                     {licensing.name} ({licensing.count})
                                   </Badge>
                                 ))}
-            </div>
+                      </div>
                       </div>
                           )
                         case 'tags':
@@ -914,8 +1047,8 @@ export default function ProfilePage() {
                           return null
                       }
                     })}
-                  </div>
-                </div>
+                      </div>
+                    </div>
               )}
 
               <div className="mt-8">
@@ -924,7 +1057,7 @@ export default function ProfilePage() {
                   <Button variant="outline" size="sm" onClick={() => setIsFeaturedShirtsOpen(true)}>
                     <Edit className="h-4 w-4 mr-2" /> Edit
                       </Button>
-                    </div>
+                  </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {featuredShirts.map((shirt) => (
                     <Card key={shirt.id} className="overflow-hidden">
@@ -938,12 +1071,12 @@ export default function ProfilePage() {
                   </div>
                       <CardContent className="p-4">
                         <h4 className="font-medium truncate">{shirt.name}</h4>
-                        <p className="text-sm text-muted-foreground">{shirt.licensing} • {shirt.year}</p>
+                        <p className="text-sm text-muted-foreground">{shirt.licensing.join(', ')} • {shirt.year}</p>
                 </CardContent>
               </Card>
                   ))}
             </div>
-              </div>
+                      </div>
 
               <div className="mt-8">
                 <div className="flex items-center justify-between mb-4">
@@ -968,10 +1101,10 @@ export default function ProfilePage() {
                       </CardContent>
                     </Card>
                   ))}
-                      </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </CardContent>
+              </Card>
 
           {/* Collection Overview Settings Dialog */}
           <Dialog open={isCollectionOverviewSettingsOpen} onOpenChange={setIsCollectionOverviewSettingsOpen}>
@@ -1090,8 +1223,8 @@ export default function ProfilePage() {
                           }}
                         >
                           <X className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      </Button>
+                    </div>
                     ))}
                     <Button
                       variant="outline"
@@ -1111,8 +1244,8 @@ export default function ProfilePage() {
                     >
                       Add Item
                     </Button>
-                          </div>
-                        </div>
+                      </div>
+                      </div>
                       </div>
             </DialogContent>
           </Dialog>
@@ -1146,15 +1279,15 @@ export default function ProfilePage() {
                           fill
                           className="object-cover"
                         />
-                    </div>
+                        </div>
                       <CardContent className="p-4">
                         <h4 className="font-medium truncate">{shirt.name}</h4>
-                        <p className="text-sm text-muted-foreground">{shirt.licensing} • {shirt.year}</p>
+                        <p className="text-sm text-muted-foreground">{shirt.licensing.join(', ')} • {shirt.year}</p>
                   </CardContent>
                 </Card>
                   ))}
-              </div>
-            </div>
+                      </div>
+                    </div>
             </DialogContent>
           </Dialog>
 
@@ -1190,13 +1323,80 @@ export default function ProfilePage() {
                           <h4 className="font-medium">{collection.name}</h4>
                         </div>
                         <p className="text-sm text-muted-foreground">{collection.description}</p>
-                      </CardContent>
-                    </Card>
+                  </CardContent>
+                </Card>
                   ))}
-                </div>
+              </div>
               </div>
             </DialogContent>
           </Dialog>
+          </TabsContent>
+
+        <TabsContent value="settings" className="space-y-4">
+                <Card>
+                  <CardHeader>
+              <CardTitle>Invite Code</CardTitle>
+              <CardDescription>Generate and manage your invite codes</CardDescription>
+                  </CardHeader>
+            <CardContent className="space-y-4">
+              {profile?.invite_code ? (
+                    <div className="space-y-4">
+                  <div className="p-4 bg-muted rounded-lg">
+                    <p className="text-sm font-medium mb-1">Your invite code:</p>
+                    <div className="flex items-center gap-2">
+                      <code className="bg-background px-2 py-1 rounded text-lg font-mono">
+                        {profile.invite_code}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(profile.invite_code!);
+                          toast.success('Invite code copied to clipboard!');
+                        }}
+                      >
+                        Copy
+                      </Button>
+                        </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">People who joined with your code:</h4>
+                    {inviteCodeUses.length > 0 ? (
+                      <div className="space-y-2">
+                        {inviteCodeUses.map((use) => (
+                          <div key={use.id} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={use.user.avatar_url || undefined} />
+                              <AvatarFallback>{use.user.username?.[0] || use.user.full_name?.[0] || '?'}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{use.user.username || use.user.full_name || 'Anonymous'}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Joined {new Date(use.used_at).toLocaleDateString()}
+                              </p>
+                          </div>
+                        </div>
+                        ))}
+                          </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No one has used your invite code yet.</p>
+                    )}
+                        </div>
+                      </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-muted-foreground mb-4">You haven't generated an invite code yet.</p>
+                  <Button
+                    onClick={generateInviteCode}
+                    disabled={isGeneratingCode}
+                  >
+                    Generate Invite Code
+                  </Button>
+                    </div>
+              )}
+                  </CardContent>
+                </Card>
           </TabsContent>
         </Tabs>
     </div>
