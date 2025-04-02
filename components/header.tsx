@@ -37,17 +37,20 @@ export default function Header() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [lastProfileFetch, setLastProfileFetch] = useState<number>(0)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
   useEffect(() => {
+    let mounted = true;
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
       setUser(session?.user ?? null)
       if (session?.user) {
         console.log('User ID:', session.user.id)
-        fetchUsername(session.user.id)
-        fetchAvatar(session.user.id)
+        fetchProfile(session.user.id)
       } else {
         setUsername(null)
         setAvatarUrl(null)
@@ -57,10 +60,10 @@ export default function Header() {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
       setUser(session?.user ?? null)
       if (session?.user) {
-        fetchUsername(session.user.id)
-        fetchAvatar(session.user.id)
+        fetchProfile(session.user.id)
       } else {
         setUsername(null)
         setAvatarUrl(null)
@@ -68,46 +71,37 @@ export default function Header() {
       setIsLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false;
+      subscription.unsubscribe()
+    }
   }, [supabase])
 
-  const fetchUsername = async (userId: string) => {
+  const fetchProfile = async (userId: string) => {
     try {
-      console.log('Fetching username for user:', userId)
+      // Rate limit profile fetches to once every 2 seconds
+      const now = Date.now();
+      if (now - lastProfileFetch < 2000) {
+        return;
+      }
+      setLastProfileFetch(now);
+
+      console.log('Fetching profile for user:', userId)
       const { data, error } = await supabase
         .from('profiles')
-        .select('username')
+        .select('username, avatar_url')
         .eq('user_id', userId)
         .single()
 
       if (error) {
-        console.error('Error fetching username:', error.message, error.details, error.hint)
+        console.error('Error fetching profile:', error.message, error.details, error.hint)
         return
       }
 
       setUsername(data?.username || null)
-    } catch (err) {
-      console.error('Error in fetchUsername:', err)
-    }
-  }
-
-  const fetchAvatar = async (userId: string) => {
-    try {
-      console.log('Fetching avatar for user:', userId)
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('avatar_url')
-        .eq('user_id', userId)
-        .single()
-
-      if (error) {
-        console.error('Error fetching avatar:', error.message, error.details, error.hint)
-        return
-      }
-
       setAvatarUrl(data?.avatar_url || null)
     } catch (err) {
-      console.error('Error in fetchAvatar:', err)
+      console.error('Error in fetchProfile:', err)
     }
   }
 

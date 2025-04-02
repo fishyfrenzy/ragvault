@@ -23,10 +23,49 @@ if (!supabaseUrl?.startsWith('https://')) {
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
+  const [lastAttempt, setLastAttempt] = useState<number>(0)
+  const [attemptCount, setAttemptCount] = useState(0)
+  const [cooldownEnd, setCooldownEnd] = useState<number>(0)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
   const redirectTo = searchParams.get('redirectTo') || '/collection'
+
+  // Load attempt count from localStorage on mount
+  useEffect(() => {
+    const storedAttemptCount = localStorage.getItem('loginAttemptCount')
+    const storedLastAttempt = localStorage.getItem('lastLoginAttempt')
+    const storedCooldownEnd = localStorage.getItem('loginCooldownEnd')
+    
+    if (storedAttemptCount && storedLastAttempt) {
+      const lastAttemptTime = parseInt(storedLastAttempt)
+      const now = Date.now()
+      
+      // Reset attempts if more than 5 minutes have passed
+      if (now - lastAttemptTime > 300000) {
+        localStorage.removeItem('loginAttemptCount')
+        localStorage.removeItem('lastLoginAttempt')
+        localStorage.removeItem('loginCooldownEnd')
+      } else {
+        setAttemptCount(parseInt(storedAttemptCount))
+        setLastAttempt(lastAttemptTime)
+        if (storedCooldownEnd) {
+          setCooldownEnd(parseInt(storedCooldownEnd))
+        }
+      }
+    }
+  }, [])
+
+  // Check if we're in cooldown
+  useEffect(() => {
+    if (cooldownEnd > 0) {
+      const now = Date.now()
+      if (now >= cooldownEnd) {
+        setCooldownEnd(0)
+        localStorage.removeItem('loginCooldownEnd')
+      }
+    }
+  }, [cooldownEnd])
 
   // Log Supabase configuration
   useEffect(() => {
@@ -49,10 +88,13 @@ export default function LoginPage() {
 
   // Check if user is already logged in
   useEffect(() => {
+    let mounted = true
     const checkSession = async () => {
+      if (!mounted) return
       console.log('Checking session...')
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
+        if (!mounted) return
         console.log('Session check result:', { 
           session: !!session, 
           error,
@@ -71,6 +113,9 @@ export default function LoginPage() {
       }
     }
     checkSession()
+    return () => {
+      mounted = false
+    }
   }, [router, supabase, redirectTo])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -78,7 +123,41 @@ export default function LoginPage() {
     
     if (isLoading) return
     
+    const now = Date.now()
+    
+    // Check if we're in cooldown
+    if (now < cooldownEnd) {
+      const timeLeft = Math.ceil((cooldownEnd - now) / 1000)
+      toast.error(`Please wait ${timeLeft} seconds before trying again.`)
+      return
+    }
+
+    // Check if we're making too many attempts
+    if (now - lastAttempt < 2000) { // 2 second cooldown between attempts
+      toast.error('Please wait a moment before trying again')
+      return
+    }
+
+    // Check if we've made too many attempts in the last 5 minutes
+    if (attemptCount >= 5) {
+      const cooldownTime = Math.min(300000, Math.pow(2, attemptCount - 4) * 60000) // Exponential backoff
+      const newCooldownEnd = now + cooldownTime
+      setCooldownEnd(newCooldownEnd)
+      localStorage.setItem('loginCooldownEnd', newCooldownEnd.toString())
+      const minutes = Math.ceil(cooldownTime / 60000)
+      toast.error(`Too many attempts. Please wait ${minutes} minute${minutes > 1 ? 's' : ''} before trying again.`)
+      return
+    }
+    
     setIsLoading(true)
+    setLastAttempt(now)
+    const newAttemptCount = attemptCount + 1
+    setAttemptCount(newAttemptCount)
+    
+    // Store attempt count in localStorage
+    localStorage.setItem('loginAttemptCount', newAttemptCount.toString())
+    localStorage.setItem('lastLoginAttempt', now.toString())
+    
     console.log('Starting sign in process...')
 
     try {
@@ -113,6 +192,13 @@ export default function LoginPage() {
           } else {
             console.error('Error resending confirmation:', resendError)
           }
+        } else if (error.message.includes('rate limit')) {
+          const cooldownTime = Math.min(300000, Math.pow(2, newAttemptCount - 4) * 60000)
+          const newCooldownEnd = now + cooldownTime
+          setCooldownEnd(newCooldownEnd)
+          localStorage.setItem('loginCooldownEnd', newCooldownEnd.toString())
+          const minutes = Math.ceil(cooldownTime / 60000)
+          toast.error(`Rate limit reached. Please wait ${minutes} minute${minutes > 1 ? 's' : ''} before trying again.`)
         } else {
           toast.error('Failed to sign in. Please check your credentials.')
         }
@@ -121,6 +207,10 @@ export default function LoginPage() {
 
       if (data?.session) {
         console.log('Session established, refreshing and redirecting...')
+        // Clear attempt count on successful login
+        localStorage.removeItem('loginAttemptCount')
+        localStorage.removeItem('lastLoginAttempt')
+        localStorage.removeItem('loginCooldownEnd')
         toast.success('Signed in successfully')
         router.refresh()
         router.push(redirectTo)
@@ -129,7 +219,7 @@ export default function LoginPage() {
         toast.error('Failed to establish session')
       }
     } catch (error) {
-      console.error('Unexpected sign in error:', error)
+      console.error('Sign in error:', error)
       toast.error('An unexpected error occurred')
     } finally {
       setIsLoading(false)

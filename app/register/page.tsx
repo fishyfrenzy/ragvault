@@ -44,10 +44,15 @@ export default function RegisterPage() {
         .eq('username', username)
         .single()
 
-      if (usernameError && !usernameError.message.includes('No rows found')) {
-        console.error('Username check error:', usernameError)
-        toast.error('Error checking username availability')
-        return
+      if (usernameError) {
+        // If the error is "No rows found", that means the username is available
+        if (usernameError.code === 'PGRST116') {
+          // Username is available, continue with registration
+        } else {
+          console.error('Username check error:', usernameError.message || 'Unknown error')
+          toast.error('Error checking username availability. Please try again.')
+          return
+        }
       }
 
       if (existingUser) {
@@ -84,18 +89,21 @@ export default function RegisterPage() {
       }
 
       if (data?.user) {
-        // Insert the profile instead of updating
+        // Wait a moment for the trigger to create the profile
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Update the profile with additional information
         const { error: profileError } = await supabase
           .from('profiles')
-          .insert({
-            user_id: data.user.id,
+          .update({
             username: username,
             used_invite_code: inviteCode
           })
+          .eq('id', data.user.id)
 
         if (profileError) {
-          console.error('Error creating profile:', profileError)
-          toast.error('Failed to create profile')
+          console.error('Error updating profile:', profileError.message || 'Unknown error')
+          toast.error(`Failed to update profile: ${profileError.message || 'Please try again'}`)
           return
         }
 

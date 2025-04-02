@@ -2,88 +2,95 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export async function middleware(req: NextRequest) {
-  console.log('Middleware triggered for path:', req.nextUrl.pathname)
+// Cache session checks for 5 seconds
+const SESSION_CACHE_DURATION = 5000
+let lastSessionCheck = 0
+let cachedSession: { hasSession: boolean; error: any } | null = null
+
+// List of paths that don't need session checks
+const PUBLIC_PATHS = [
+  '/_next',
+  '/api',
+  '/static',
+  '/favicon.ico',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/auth/callback'
+]
+
+export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
   
-  const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res }, {
-    cookieOptions: {
-      name: "sb-auth-token",
-      domain: req.nextUrl.hostname,
-      path: "/",
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production"
-    }
-  })
+  // Skip session check for public routes
+  if (PUBLIC_PATHS.some(path => pathname.startsWith(path))) {
+    return NextResponse.next()
+  }
 
   try {
-    // Refresh session if expired - required for Server Components
-    console.log('Checking session in middleware...')
-    const { data: { session }, error } = await supabase.auth.getSession()
-    console.log('Middleware session check:', { hasSession: !!session, error })
+    const res = NextResponse.next()
+    const supabase = createMiddlewareClient({ req: request, res })
 
-    // Handle auth errors
-    if (error) {
-      console.error('Middleware auth error:', error)
-      // Only redirect if it's not a rate limit error
-      if (error.status !== 429) {
-        return NextResponse.redirect(new URL('/login?error=session_error', req.url))
+    // Check if we have a cached session that's still valid
+    const now = Date.now()
+    if (cachedSession && (now - lastSessionCheck) < SESSION_CACHE_DURATION) {
+      if (!cachedSession.hasSession) {
+        return redirectToLogin(request)
       }
-      // For rate limit errors, just continue without redirecting
       return res
     }
 
-    // If there's no session and the user is trying to access a protected route
-    const isProtectedRoute = (
-      req.nextUrl.pathname.startsWith('/profile') ||
-      req.nextUrl.pathname.startsWith('/collection') ||
-      req.nextUrl.pathname.startsWith('/settings')
-    )
+    // Perform new session check
+    const { data: { session }, error } = await supabase.auth.getSession()
+    const sessionCheck = { hasSession: !!session, error }
 
-    if (!session && isProtectedRoute) {
-      console.log('No session found for protected route:', req.nextUrl.pathname)
-      const redirectUrl = new URL('/login', req.url)
-      redirectUrl.searchParams.set('redirectTo', req.nextUrl.pathname)
-      console.log('Redirecting to:', redirectUrl.toString())
-      return NextResponse.redirect(redirectUrl)
+    // Cache the result
+    lastSessionCheck = now
+    cachedSession = sessionCheck
+
+    if (error) {
+      // If it's a rate limit error, allow the request to proceed
+      if (error.message?.includes('rate limit')) {
+        console.warn('Rate limit hit in middleware, allowing request to proceed')
+        return res
+      }
+      return redirectToLogin(request)
     }
 
-    // If there's a session and the user is trying to access auth pages
-    const isAuthPage = (
-      req.nextUrl.pathname.startsWith('/login') ||
-      req.nextUrl.pathname.startsWith('/register')
-    )
-
-    if (session && isAuthPage) {
-      console.log('User already authenticated, redirecting from auth page to collection')
-      return NextResponse.redirect(new URL('/collection', req.url))
+    if (!session) {
+      return redirectToLogin(request)
     }
 
-    // Try to refresh the session
-    if (session) {
-      await supabase.auth.getUser()
-    }
-
-    console.log('Middleware completed normally')
     return res
-  } catch (e: any) {
-    console.error('Middleware error:', e)
-    // Only redirect if it's not a rate limit error
-    if (e.status !== 429) {
-      return NextResponse.redirect(new URL('/login?error=middleware_error', req.url))
+  } catch (error: any) {
+    // If it's a rate limit error, allow the request to proceed
+    if (error.message?.includes('rate limit')) {
+      console.warn('Rate limit hit in middleware, allowing request to proceed')
+      return NextResponse.next()
     }
-    // For rate limit errors, just continue without redirecting
-    return res
+    console.error('Middleware error:', error)
+    return NextResponse.next()
   }
+}
+
+function redirectToLogin(request: NextRequest) {
+  const redirectUrl = new URL('/login', request.url)
+  const currentPath = request.nextUrl.pathname
+  if (currentPath !== '/login') {
+    redirectUrl.searchParams.set('redirectTo', currentPath)
+  }
+  return NextResponse.redirect(redirectUrl)
 }
 
 export const config = {
   matcher: [
-    '/profile/:path*',
-    '/collection/:path*',
-    '/settings/:path*',
-    '/login',
-    '/register',
-    '/auth/callback',
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
   ],
 } 
