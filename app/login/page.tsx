@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { Suspense } from 'react'
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
@@ -14,6 +15,7 @@ import { Cog } from "lucide-react"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
+import { XCircleIcon } from "@heroicons/react/24/outline"
 
 // Ensure we have the correct URL format
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -21,7 +23,7 @@ if (!supabaseUrl?.startsWith('https://')) {
   console.error('Invalid Supabase URL format:', supabaseUrl)
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [lastAttempt, setLastAttempt] = useState<number>(0)
   const [attemptCount, setAttemptCount] = useState(0)
@@ -30,6 +32,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
   const redirectTo = searchParams.get('redirectTo') || '/collection'
+  const error = searchParams.get('error')
 
   // Load attempt count from localStorage on mount
   useEffect(() => {
@@ -77,14 +80,15 @@ export default function LoginPage() {
 
   // Check for error params
   useEffect(() => {
-    const error = searchParams.get('error')
-    console.log('URL error param:', error)
-    if (error === 'auth_callback_failed') {
-      toast.error('Authentication failed. Please try again.')
-    } else if (error === 'session_error') {
-      toast.error('Session error. Please sign in again.')
+    if (error) {
+      console.log('URL error param:', error)
+      if (error === 'auth_callback_failed') {
+        toast.error('Authentication failed. Please try again.')
+      } else if (error === 'session_error') {
+        toast.error('Session error. Please sign in again.')
+      }
     }
-  }, [searchParams])
+  }, [error])
 
   // Check if user is already logged in
   useEffect(() => {
@@ -248,14 +252,38 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="container flex h-screen w-screen flex-col items-center justify-center">
-      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-        <div className="flex flex-col space-y-2 text-center">
-          <Cog className="mx-auto h-6 w-6" />
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-          <p className="text-sm text-muted-foreground">Enter your credentials to sign in</p>
-        </div>
-        <Card>
+    <div className="flex min-h-screen flex-col items-center justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight">
+          Sign in to your account
+        </h2>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white px-4 py-8 shadow sm:rounded-lg sm:px-10">
+          {error && (
+            <div className="mb-4 rounded-md bg-red-50 p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <XCircleIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">
+                    {error === 'OAuthSignin' && 'Error signing in with OAuth provider'}
+                    {error === 'OAuthCallback' && 'Error during OAuth callback'}
+                    {error === 'OAuthCreateAccount' && 'Error creating OAuth account'}
+                    {error === 'EmailCreateAccount' && 'Error creating email account'}
+                    {error === 'Callback' && 'Error during callback'}
+                    {error === 'OAuthAccountNotLinked' && 'Account not linked'}
+                    {error === 'EmailSignin' && 'Error signing in with email'}
+                    {error === 'CredentialsSignin' && 'Invalid credentials'}
+                    {error === 'SessionRequired' && 'Please sign in to access this page'}
+                    {!error && 'An error occurred during authentication'}
+                  </h3>
+                </div>
+              </div>
+            </div>
+          )}
           <form onSubmit={handleSubmit}>
             <CardContent className="pt-6">
               <div className="grid gap-4">
@@ -306,9 +334,21 @@ export default function LoginPage() {
               </p>
             </CardFooter>
           </form>
-        </Card>
+        </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-gray-900"></div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }
 

@@ -73,6 +73,7 @@ interface TShirt {
   price: number | null
   user_id: string
   collection_id: number | null
+  item_images: { image_url: string }[]
 }
 
 interface Collection {
@@ -94,6 +95,12 @@ interface InviteCodeUse {
     avatar_url: string | null
   }
   used_at: string
+}
+
+interface ItemImage {
+  id: number;
+  image_url: string;
+  is_primary: boolean;
 }
 
 export default function ProfilePage() {
@@ -399,19 +406,56 @@ export default function ProfilePage() {
     }
   }
 
+  // Add custom scrollbar styles
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #555;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   const fetchFeaturedItems = async () => {
-    if (!profile) return
+    if (!profile) return;
 
     try {
-      // Fetch featured shirts
+      // Fetch featured shirts with their images
       if (profile.featured_shirts?.length > 0) {
         const { data: shirts, error: shirtsError } = await supabase
           .from('t_shirts')
-          .select('*')
-          .in('id', profile.featured_shirts)
+          .select(`
+            *,
+            item_images (
+              id,
+              image_url,
+              is_primary
+            )
+          `)
+          .in('id', profile.featured_shirts);
 
         if (!shirtsError && shirts) {
-          setFeaturedShirts(shirts)
+          // Map the shirts to include the primary image URL
+          const shirtsWithImages = shirts.map(shirt => ({
+            ...shirt,
+            image: shirt.item_images?.find((img: ItemImage) => img.is_primary)?.image_url || shirt.item_images?.[0]?.image_url || null
+          }));
+          setFeaturedShirts(shirtsWithImages);
         }
       }
 
@@ -651,7 +695,7 @@ export default function ProfilePage() {
           <TabsTrigger value="my-profile">My Profile</TabsTrigger>
           <TabsTrigger value="public-profile">Public Profile</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
+        </TabsList>
 
         <TabsContent value="my-profile" className="space-y-6">
           <Card>
@@ -1056,26 +1100,28 @@ export default function ProfilePage() {
                   <h3 className="text-lg font-semibold">Featured Shirts</h3>
                   <Button variant="outline" size="sm" onClick={() => setIsFeaturedShirtsOpen(true)}>
                     <Edit className="h-4 w-4 mr-2" /> Edit
-                      </Button>
+                  </Button>
                   </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                   {featuredShirts.map((shirt) => (
-                    <Card key={shirt.id} className="overflow-hidden">
-                      <div className="relative aspect-square">
-                        <Image
-                          src={shirt.image || "/placeholder.svg"}
-                          alt={shirt.name}
-                          fill
-                          className="object-cover"
-                        />
-                  </div>
-                      <CardContent className="p-4">
-                        <h4 className="font-medium truncate">{shirt.name}</h4>
-                        <p className="text-sm text-muted-foreground">{shirt.licensing.join(', ')} • {shirt.year}</p>
-                </CardContent>
-              </Card>
+                    <Link key={shirt.id} href={`/items/${shirt.id}`}>
+                      <Card className="overflow-hidden hover:ring-2 hover:ring-primary transition-all cursor-pointer">
+                        <div className="relative aspect-square">
+                          <Image
+                            src={shirt.image || "/placeholder.svg"}
+                            alt={shirt.name}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <CardContent className="p-4">
+                          <h4 className="font-medium truncate">{shirt.name}</h4>
+                          <p className="text-sm text-muted-foreground">{shirt.licensing.join(', ')} • {shirt.year}</p>
+                        </CardContent>
+                      </Card>
+                    </Link>
                   ))}
-            </div>
+                </div>
                       </div>
 
               <div className="mt-8">
@@ -1096,15 +1142,15 @@ export default function ProfilePage() {
                             <div className={`w-6 h-6 rounded-full ${collection.color}`}></div>
                           )}
                           <h4 className="font-medium">{collection.name}</h4>
-                      </div>
+                        </div>
                         <p className="text-sm text-muted-foreground">{collection.description}</p>
                       </CardContent>
                     </Card>
                   ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Collection Overview Settings Dialog */}
           <Dialog open={isCollectionOverviewSettingsOpen} onOpenChange={setIsCollectionOverviewSettingsOpen}>
@@ -1252,42 +1298,60 @@ export default function ProfilePage() {
 
           {/* Featured Shirts Dialog */}
           <Dialog open={isFeaturedShirtsOpen} onOpenChange={setIsFeaturedShirtsOpen}>
-            <DialogContent>
+            <DialogContent className="max-h-[80vh]">
               <DialogHeader>
                 <DialogTitle>Featured Shirts</DialogTitle>
                 <DialogDescription>Select shirts to showcase on your profile</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-4 overflow-y-auto pr-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {tshirts.map((shirt) => (
-                    <Card
-                      key={shirt.id}
-                      className={`overflow-hidden cursor-pointer ${
-                        profile.featured_shirts.includes(shirt.id) ? 'ring-2 ring-primary' : ''
-                      }`}
-                      onClick={() => {
-                        const newFeaturedShirts = profile.featured_shirts.includes(shirt.id)
-                          ? profile.featured_shirts.filter(id => id !== shirt.id)
-                          : [...profile.featured_shirts, shirt.id]
-                        updateFeaturedItems('shirts', newFeaturedShirts)
-                      }}
-                    >
-                      <div className="relative aspect-square">
-                        <Image
-                          src={shirt.image || "/placeholder.svg"}
-                          alt={shirt.name}
-                          fill
-                          className="object-cover"
-                        />
+                    <div key={shirt.id}>
+                      <Card
+                        className={`overflow-hidden cursor-pointer ${
+                          profile.featured_shirts.includes(shirt.id) ? 'ring-2 ring-primary' : ''
+                        }`}
+                        onClick={() => {
+                          const newFeaturedShirts = profile.featured_shirts.includes(shirt.id)
+                            ? profile.featured_shirts.filter(id => id !== shirt.id)
+                            : [...profile.featured_shirts, shirt.id]
+                          updateFeaturedItems('shirts', newFeaturedShirts)
+                        }}
+                      >
+                        <div className="relative aspect-square">
+                          {shirt.image ? (
+                            <Image
+                              src={shirt.image}
+                              alt={shirt.name}
+                              fill
+                              className="object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = "/placeholder.svg";
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-muted">
+                              <ShirtIcon className="h-12 w-12 text-muted-foreground" />
+                            </div>
+                          )}
                         </div>
-                      <CardContent className="p-4">
-                        <h4 className="font-medium truncate">{shirt.name}</h4>
-                        <p className="text-sm text-muted-foreground">{shirt.licensing.join(', ')} • {shirt.year}</p>
-                  </CardContent>
-                </Card>
-                  ))}
-                      </div>
+                        <CardContent className="p-4">
+                          <h4 className="font-medium truncate">{shirt.name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {Array.isArray(shirt.licensing) ? shirt.licensing.join(', ') : shirt.licensing} • {shirt.year}
+                          </p>
+                        </CardContent>
+                      </Card>
+                      <Link href={`/items/${shirt.id}`} className="block mt-2">
+                        <Button variant="outline" className="w-full">
+                          View Details
+                        </Button>
+                      </Link>
                     </div>
+                  ))}
+                </div>
+              </div>
             </DialogContent>
           </Dialog>
 
@@ -1323,10 +1387,10 @@ export default function ProfilePage() {
                           <h4 className="font-medium">{collection.name}</h4>
                         </div>
                         <p className="text-sm text-muted-foreground">{collection.description}</p>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
                   ))}
-              </div>
+                </div>
               </div>
             </DialogContent>
           </Dialog>

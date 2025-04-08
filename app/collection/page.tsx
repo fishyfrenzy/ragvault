@@ -724,7 +724,7 @@ export default function CollectionPage() {
   const handleSort = (field: string) => {
     // Check if the field is sortable
     const column = availableColumns.find((col) => col.id === field)
-    if (!column?.sortable) return       
+    if (!column?.sortable) return
 
     // Update sort state
     if (sortField === field) {
@@ -1099,7 +1099,7 @@ export default function CollectionPage() {
         const estimatedValueInput = document.getElementById(`item-${item.id}-value`) as HTMLInputElement;
         const descriptionInput = document.getElementById(`item-${item.id}-description`) as HTMLTextAreaElement;
         const tagsInput = document.getElementById(`item-${item.id}-tags`) as HTMLInputElement;
-
+        
         const name = nameInput?.value.trim();
         const collectionId = collectionSelect?.value;
         const listingStatus = listingStatusSelect?.value || 'Public';
@@ -1503,99 +1503,112 @@ export default function CollectionPage() {
     }
   };
 
+  // Add these computed values after other state declarations
+  const isAllSelected = useMemo(() => {
+    return sortedTshirts.length > 0 && selectedItems.length === sortedTshirts.length;
+  }, [sortedTshirts.length, selectedItems.length]);
+
+  // Add this function after other function declarations
+  const toggleAllItems = () => {
+    if (isAllSelected) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(sortedTshirts.map((shirt) => shirt.id));
+    }
+  };
+
   return (
     <div className="container py-8">
       <div className="flex flex-col min-h-screen">
+        <div className="flex flex-col gap-6">
           <div>
-      <div className="flex flex-col gap-6">
-            {/* Main content area */}
-          <div>
-              {/* Collection title and selector */}
-              <div className="mb-6">
-            <h1 className="text-3xl font-bold tracking-tight">My Collection</h1>
-            <p className="text-muted-foreground">Manage and organize your t-shirt collection</p>
-                
-                {/* Collections row */}
-                <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2">
-                  <Button
-                    variant={selectedCollection === "all" ? "default" : "outline"}
-                    onClick={() => setSelectedCollection("all")}
-                    className="whitespace-nowrap"
-                  >
-                    <Layers className="mr-2 h-4 w-4" /> All Shirts
-            </Button>
-            
-                  {userCollections.map((collection) => (
-                    <div key={collection.id} className="flex items-center gap-1">
-                      <div className="relative flex items-center">
-                        <Button
-                          variant={selectedCollection === collection.id.toString() ? "default" : "outline"}
-                          onClick={() => setSelectedCollection(collection.id.toString())}
-                          className="whitespace-nowrap"
-                        >
-                          {collection.name}
-            </Button>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 ml-1 hover:bg-accent absolute right-0"
-                            >
-                              <MoreVertical className="h-4 w-4" />
+            {/* Collection title and selector */}
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold tracking-tight">My Collection</h1>
+              <p className="text-muted-foreground">Manage and organize your t-shirt collection</p>
+              
+              {/* Collections row */}
+              <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2">
+                <Button
+                  variant={selectedCollection === "all" ? "default" : "outline"}
+                  onClick={() => setSelectedCollection("all")}
+                  className="whitespace-nowrap"
+                >
+                  <Layers className="mr-2 h-4 w-4" /> All Shirts
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Collection Settings</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => {
-                                if (confirm(`Are you sure you want to delete "${collection.name}"? This cannot be undone.`)) {
-                                  handleDeleteCollection(collection.id.toString())
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete Collection
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-                  ))}
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsNewCollectionOpen(true)}
-                    className="whitespace-nowrap"
-                  >
-                    <Plus className="mr-2 h-4 w-4" /> New Collection
-                  </Button>
-                </div>
+                
+                {userCollections.map((collection) => (
+                  <div key={collection.id} className="flex items-center gap-1">
+                    <div className="relative flex items-center">
+                      <Button
+                        variant={selectedCollection === collection.id.toString() ? "default" : "outline"}
+                        onClick={() => setSelectedCollection(collection.id.toString())}
+                        className="whitespace-nowrap"
+                      >
+                        {collection.name}
+                      </Button>
+                      
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 ml-1 hover:bg-accent absolute right-0"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Collection Settings</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => {
+                              if (confirm(`Are you sure you want to delete "${collection.name}"? This cannot be undone.`)) {
+                                handleDeleteCollection(collection.id.toString())
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Collection
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                ))}
+                
+                <Button
+                  variant="outline"
+                  onClick={() => setIsNewCollectionOpen(true)}
+                  className="whitespace-nowrap"
+                >
+                  <Plus className="mr-2 h-4 w-4" /> New Collection
+                </Button>
               </div>
+            </div>
 
             {/* Collection title */}
             <div className="mb-6">
               {selectedCollection === "all" ? (
-                  <h2 className="text-2xl font-bold">All Shirts ({filteredTshirts.length})</h2>
+                <h2 className="text-2xl font-bold">All Shirts ({filteredTshirts.length})</h2>
               ) : (
                 <>
                   {(() => {
-                      const collection = userCollections.find(
-                      (c) => c.id.toString() === selectedCollection,
-                    )
+                    const collection = userCollections.find(
+                      (c) => c.id.toString() === selectedCollection
+                    );
                     if (collection) {
-                      const itemCount = filteredTshirts.length
+                      const itemCount = filteredTshirts.length;
                       return (
                         <div className="flex items-center gap-2">
                           <h2 className="text-2xl font-bold">
                             {collection.name} ({itemCount})
                           </h2>
                         </div>
-                      )
+                      );
                     }
+                    return null;
                   })()}
                 </>
               )}
@@ -1840,465 +1853,94 @@ export default function CollectionPage() {
               </div>
             )}
 
-            {/* T-shirt grid/list - remains the same but now full width */}
+            {/* T-shirt grid/list */}
             {sortedTshirts.length > 0 ? (
               <>
                 {viewMode === "grid" ? (
-                  <>
-                    <div className="border rounded-md mb-4">
-                      <div className="flex justify-between items-center p-2 bg-muted/50 border-b">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setIsColumnCustomizationOpen(true)}
-                            className="flex items-center gap-1"
-                          >
-                            <Settings className="h-3.5 w-3.5" />
-                            Customize Columns
-                          </Button>
-
-                          {selectedItems.length > 0 && (
-                            <>
-                              <span className="text-sm font-medium">{selectedItems.length} selected</span>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="sm">Bulk Actions</Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                  <DropdownMenuLabel>Listing Status</DropdownMenuLabel>
-                                  <DropdownMenuItem key="bulk-public" onClick={() => handleBulkStatusChange("Public")}>
-                                    Set as Not For Sale
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem key="bulk-private" onClick={() => handleBulkStatusChange("Private")}>
-                                    Set as Private
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem key="bulk-for-sale" onClick={() => handleBulkStatusChange("For Sale")}>
-                                    Set as For Sale
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem key="bulk-taking-offers" onClick={() => handleBulkStatusChange("Taking Offers")}>
-                                    Taking Offers
-                                  </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuLabel>Collections</DropdownMenuLabel>
-                                    <DropdownMenuItem key="bulk-all-shirts" onClick={() => handleBulkCollectionMove(null)}>
-                                      Move to All Shirts
-                                    </DropdownMenuItem>
-                                    {userCollections.map((collection) => (
-                                      <DropdownMenuItem 
-                                        key={`bulk-collection-${collection.id}`} 
-                                        onClick={() => handleBulkCollectionMove(collection.id.toString())}
-                                      >
-                                        Move to {collection.name}
-                                      </DropdownMenuItem>
-                                    ))}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem key="bulk-delete" onClick={handleBulkDelete} className="text-destructive">
-                                    Delete Selected
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                              <Button variant="outline" size="sm" onClick={() => setSelectedItems([])}>
-                                Clear Selection
-                              </Button>
-                            </>
-                          )}
-                          
-                          <Button variant="outline" size="sm" onClick={exportToCSV}>
-                            <FileDown className="mr-2 h-3.5 w-3.5" /> Export
-                          </Button>
-                        </div>
-                        
-                        <div>
-                          <Button variant="default" size="sm" onClick={() => setIsQuickAddOpen(true)}>
-                            <PlusCircle className="mr-2 h-3.5 w-3.5" /> Quick Add
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                      {sortedTshirts.map((shirt) => (
-                        <Card
-                          key={shirt.id}
-                          className={`overflow-hidden ${selectedItems.includes(shirt.id) ? "ring-2 ring-primary/40" : ""}`}
-                        >
-                          <div className="relative aspect-square">
-                              {shirt.image ? (
-                                <Image
-                                  src={shirt.image}
-                                alt={shirt.name}
-                                  fill
-                                  className="object-cover"
-                              />
-                            ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {sortedTshirts.map((shirt) => (
+                    <div key={shirt.id}>
+                      <Card
+                        className={`overflow-hidden ${selectedItems.includes(shirt.id) ? "ring-2 ring-primary/40" : ""}`}
+                      >
+                        <Link href={`/items/${shirt.id}`}>
+                        <div className="relative aspect-square">
+                            {shirt.image ? (
                               <Image
-                                  src="/placeholder.svg"
-                                alt={shirt.name}
+                                src={shirt.image}
+                              alt={shirt.name}
                                 fill
                                 className="object-cover"
-                              />
-                            )}
-                            <div className="absolute top-2 left-2 z-10">
-                              <Checkbox
-                                checked={selectedItems.includes(shirt.id)}
-                                onCheckedChange={() => toggleItemSelection(shirt.id)}
-                                aria-label={`Select ${shirt.name}`}
-                                className="bg-background/80 backdrop-blur-sm border-muted"
-                              />
-                            </div>
+                            />
+                          ) : (
+                            <Image
+                                src="/placeholder.svg"
+                              alt={shirt.name}
+                              fill
+                              className="object-cover"
+                            />
+                          )}
+                          <div 
+                            className="absolute top-2 left-2 z-10"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                          >
+                            <Checkbox
+                              checked={selectedItems.includes(shirt.id)}
+                              onCheckedChange={() => toggleItemSelection(shirt.id)}
+                              aria-label={`Select ${shirt.name}`}
+                              className="bg-background/80 backdrop-blur-sm border-muted"
+                            />
                           </div>
-                          <CardHeader className="p-4">
-                            <CardTitle className="text-lg">{shirt.name}</CardTitle>
-                            <CardDescription>
-                              <div className="flex flex-wrap gap-1">
-                                {(typeof shirt.licensing === 'string' ? [shirt.licensing] : shirt.licensing).map((l, index) => (
-                                  <Badge key={index} variant="secondary" className="text-xs">
-                                    {l}
-                                  </Badge>
-                                ))}
-                              </div>
-                              {shirt.year && <span className="mt-1 block">{shirt.year}</span>}
-                            </CardDescription>
-                          </CardHeader>
-                          <CardContent className="p-4 pt-0">
-                            <div className="flex justify-between items-center mb-2">
-                              <ListingStatusBadge
-                                status={shirt.listing_status}
-                                price={shirt.price}
-                                itemId={shirt.id}
-                                onStatusChange={handleListingStatusChange}
-                              />
-                            </div>
-                            <div className="flex justify-between items-center mb-2"></div>
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {shirt.tags.slice(0, 4).map((tag, index) => (
-                                // Only show first 4 tags (2x2 grid)
-                                <Badge key={tag} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                              {shirt.tags.length > 4 && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Badge variant="outline" className="text-xs cursor-help">
-                                        +{shirt.tags.length - 4}
-                                      </Badge>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <div className="flex flex-col gap-1">
-                                        <p className="font-semibold text-xs">Additional tags:</p>
-                                        {shirt.tags.slice(4).map((tag) => (
-                                          <span key={tag} className="text-xs">{tag}</span>
-                                        ))}
-                                      </div>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
-                            </div>
-                          </CardContent>
-                          <CardFooter className="p-4 pt-0 flex justify-between">
-                              <span className="text-sm text-muted-foreground">Added {new Date(shirt.date_added).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
-                            <span className="font-medium">${shirt.estimated_value}</span>
-                          </CardFooter>
-                        </Card>
-                      ))}
+                        </div>
+                          <CardContent className="p-4">
+                            <h3 className="font-medium truncate hover:text-primary transition-colors">{shirt.name}</h3>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {Array.isArray(shirt.licensing) ? shirt.licensing.join(', ') : shirt.licensing} • {shirt.year}
+                            </p>
+                        </CardContent>
+                        </Link>
+                      </Card>
                     </div>
-                  </>
+                    ))}
+                  </div>
                 ) : (
                   <div className="border rounded-md">
-                    {/* List view header with actions */}
-                    <div className="flex justify-between items-center p-2 bg-muted/50 border-b">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setIsColumnCustomizationOpen(true)}
-                          className="flex items-center gap-1"
-                        >
-                          <Settings className="h-3.5 w-3.5" />
-                          Customize Columns
-                        </Button>
-
-                        {selectedItems.length > 0 && (
-                          <>
-                            <span className="text-sm font-medium">{selectedItems.length} selected</span>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm">Bulk Actions</Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent>
-                                <DropdownMenuLabel>Listing Status</DropdownMenuLabel>
-                                <DropdownMenuItem key="bulk-public" onClick={() => handleBulkStatusChange("Public")}>
-                                  Set as Not For Sale
-                                </DropdownMenuItem>
-                                <DropdownMenuItem key="bulk-private" onClick={() => handleBulkStatusChange("Private")}>
-                                  Set as Private
-                                </DropdownMenuItem>
-                                <DropdownMenuItem key="bulk-for-sale" onClick={() => handleBulkStatusChange("For Sale")}>
-                                  Set as For Sale
-                                </DropdownMenuItem>
-                                <DropdownMenuItem key="bulk-taking-offers" onClick={() => handleBulkStatusChange("Taking Offers")}>
-                                  Taking Offers
-                                </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuLabel>Collections</DropdownMenuLabel>
-                                  <DropdownMenuItem key="bulk-all-shirts" onClick={() => handleBulkCollectionMove(null)}>
-                                    Move to All Shirts
-                                  </DropdownMenuItem>
-                                  {userCollections.map((collection) => (
-                                    <DropdownMenuItem 
-                                      key={`bulk-collection-${collection.id}`} 
-                                      onClick={() => handleBulkCollectionMove(collection.id.toString())}
-                                    >
-                                      Move to {collection.name}
-                                    </DropdownMenuItem>
-                                  ))}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem key="bulk-delete" onClick={handleBulkDelete} className="text-destructive">
-                                  Delete Selected
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                            <Button variant="outline" size="sm" onClick={() => setSelectedItems([])}>
-                              Clear Selection
-                            </Button>
-                          </>
-                        )}
-                        
-                        <Button variant="outline" size="sm" onClick={exportToCSV}>
-                          <FileDown className="mr-2 h-3.5 w-3.5" /> Export
-                        </Button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {sortField && (
-                          <div className="flex items-center gap-1 text-sm">
-                            <span>
-                              Sorted by:
-                              <span className="font-medium">
-                                {availableColumns.find((col) => col.id === sortField)?.name}
-                              </span>
-                            </span>
-                            <Badge variant="outline" className="ml-1">
-                              {sortDirection === "asc" ? "A-Z" : "Z-A"}
-                            </Badge>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => {
-                                setSortField(null)
-                                setSortDirection(null)
-                              }}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        )}
-                        
-                        <Button variant="default" size="sm" onClick={() => setIsQuickAddOpen(true)}>
-                          <PlusCircle className="mr-2 h-3.5 w-3.5" /> Quick Add
-                        </Button>
-                      </div>
-                    </div>
-
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                      <table className="w-full">
                         <thead>
-                          <tr className="bg-muted border-b">
-                            <th className="px-4 py-3 text-left">
-                              <Checkbox
-                                checked={selectedItems.length === sortedTshirts.length && sortedTshirts.length > 0}
-                                onCheckedChange={toggleSelectAll}
-                                aria-label="Select all"
-                              />
+                          <tr className="border-b bg-muted/50">
+                            <th className="px-4 py-3"><Checkbox checked={isAllSelected} onCheckedChange={toggleAllItems} aria-label="Select all items"/></th>
+                            {visibleColumns.map((column) => (
+                              <th key={column} className="px-4 py-3 text-left font-medium">
+                                {column.charAt(0).toUpperCase() + column.slice(1)}
                             </th>
-                            {visibleColumns.includes("image") && (
-                              <th className="px-4 py-3 text-left font-medium">Image</th>
-                            )}
-
-                            {visibleColumns.includes("name") && (
-                              <th className="px-4 py-3 text-left font-medium">
-                                <button
-                                  className="flex items-center gap-1 hover:text-primary"
-                                  onClick={() => handleSort("name")}
-                                >
-                                  Name
-                                  {sortField === "name" ? (
-                                    sortDirection === "asc" ? (
-                                      <ArrowUp className="h-3 w-3" />
-                                    ) : (
-                                      <ArrowDown className="h-3 w-3" />
-                                    )
-                                  ) : (
-                                    <ArrowUpDown className="h-3 w-3 opacity-50" />
-                                  )}
-                                </button>
-                              </th>
-                            )}
-
-                            {visibleColumns.includes("licensing") && (  // Changed from 'brand' to 'licensing' to match database column
-                              <th className="px-4 py-3 text-left font-medium">
-                                <button
-                                  className="flex items-center gap-1 hover:text-primary"
-                                  onClick={() => handleSort("licensing")}
-                                >
-                                  Licensing
-                                  {sortField === "licensing" ? (
-                                    sortDirection === "asc" ? (
-                                      <ArrowUp className="h-3 w-3" />
-                                    ) : (
-                                      <ArrowDown className="h-3 w-3" />
-                                    )
-                                  ) : (
-                                    <ArrowUpDown className="h-3 w-3 opacity-50" />
-                                  )}
-                                </button>
-                              </th>
-                            )}
-
-                            {visibleColumns.includes("year") && (
-                              <th className="px-4 py-3 text-left font-medium">
-                                <button
-                                  className="flex items-center gap-1 hover:text-primary"
-                                  onClick={() => handleSort("year")}
-                                >
-                                  Year
-                                  {sortField === "year" ? (
-                                    sortDirection === "asc" ? (
-                                      <ArrowUp className="h-3 w-3" />
-                                    ) : (
-                                      <ArrowDown className="h-3 w-3" />
-                                    )
-                                  ) : (
-                                    <ArrowUpDown className="h-3 w-3 opacity-50" />
-                                  )}
-                                </button>
-                              </th>
-                            )}
-
-                            {visibleColumns.includes("size") && (
-                              <th className="px-4 py-3 text-left font-medium">
-                                <button
-                                  className="flex items-center gap-1 hover:text-primary"
-                                  onClick={() => handleSort("size")}
-                                >
-                                  Size
-                                  {sortField === "size" ? (
-                                    sortDirection === "asc" ? (
-                                      <ArrowUp className="h-3 w-3" />
-                                    ) : (
-                                      <ArrowDown className="h-3 w-3" />
-                                    )
-                                  ) : (
-                                    <ArrowUpDown className="h-3 w-3 opacity-50" />
-                                  )}
-                                </button>
-                              </th>
-                            )}
-
-                            {visibleColumns.includes("condition") && (
-                              <th className="px-4 py-3 text-left font-medium">
-                                <button
-                                  className="flex items-center gap-1 hover:text-primary"
-                                  onClick={() => handleSort("condition")}
-                                >
-                                  Condition
-                                  {sortField === "condition" ? (
-                                    sortDirection === "asc" ? (
-                                      <ArrowUp className="h-3 w-3" />
-                                    ) : (
-                                      <ArrowDown className="h-3 w-3" />
-                                    )
-                                  ) : (
-                                    <ArrowUpDown className="h-3 w-3 opacity-50" />
-                                  )}
-                                </button>
-                              </th>
-                            )}
-
-                            {visibleColumns.includes("listing_status") && (
-                              <th className="px-4 py-3 text-left font-medium">
-                                <button
-                                  className="flex items-center gap-1 hover:text-primary"
-                                  onClick={() => handleSort("listing_status")}
-                                >
-                                  Listing Status
-                                  {sortField === "listing_status" ? (
-                                    sortDirection === "asc" ? (
-                                      <ArrowUp className="h-3 w-3" />
-                                    ) : (
-                                      <ArrowDown className="h-3 w-3" />
-                                    )
-                                  ) : (
-                                    <ArrowUpDown className="h-3 w-3 opacity-50" />
-                                  )}
-                                </button>
-                              </th>
-                            )}
-
-                            {visibleColumns.includes("tags") && (
-                              <th className="px-4 py-3 text-left font-medium">Tags</th>
-                            )}
-
-                            {visibleColumns.includes("date_added") && (
-                              <th className="px-4 py-3 text-left font-medium">
-                                <button
-                                  className="flex items-center gap-1 hover:text-primary"
-                                  onClick={() => handleSort("date_added")}
-                                >
-                                  Added
-                                  {sortField === "date_added" ? (
-                                    sortDirection === "asc" ? (
-                                      <ArrowUp className="h-3 w-3" />
-                                    ) : (
-                                      <ArrowDown className="h-3 w-3" />
-                                    )
-                                  ) : (
-                                    <ArrowUpDown className="h-3 w-3 opacity-50" />
-                                  )}
-                                </button>
-                              </th>
-                            )}
-
-                            {visibleColumns.includes("estimated_value") && (
-                              <th className="px-4 py-3 text-right font-medium">
-                                <button
-                                  className="flex items-center gap-1 hover:text-primary ml-auto"
-                                  onClick={() => handleSort("estimated_value")}
-                                >
-                                  Value
-                                  {sortField === "estimated_value" ? (
-                                    sortDirection === "asc" ? (
-                                      <ArrowUp className="h-3 w-3" />
-                                    ) : (
-                                      <ArrowDown className="h-3 w-3" />
-                                    )
-                                  ) : (
-                                    <ArrowUpDown className="h-3 w-3 opacity-50" />
-                                  )}
-                                </button>
-                              </th>
-                            )}
-
-                            {visibleColumns.includes("actions") && (
-                              <th className="px-4 py-3 text-right font-medium">Actions</th>
-                            )}
-
-                              {visibleColumns.includes("collection") && (
-                                <th className="px-4 py-3 text-left font-medium">Collection</th>
-                            )}
+                            ))}
+                            <th className="px-4 py-3"></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
                           {sortedTshirts.map((shirt) => (
-                              <tr key={shirt.id} className={`hover:bg-muted/50 ${selectedItems.includes(shirt.id) ? "bg-primary/5" : ""}`}>
-                                <td className="px-4 py-3"><Checkbox checked={selectedItems.includes(shirt.id)} onCheckedChange={() => toggleItemSelection(shirt.id)} aria-label={`Select ${shirt.name}`}/></td>
+                            <tr key={shirt.id} className={`hover:bg-muted/50 ${selectedItems.includes(shirt.id) ? "bg-primary/5" : ""}`}>
+                              <td className="px-4 py-3">
+                                <div
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  <Checkbox
+                                    checked={selectedItems.includes(shirt.id)}
+                                    onCheckedChange={() => toggleItemSelection(shirt.id)}
+                                    aria-label={`Select ${shirt.name}`}
+                                  />
+                                </div>
+                              </td>
                               {visibleColumns.includes("image") && (
                                 <td className="px-4 py-3">
+                                  <Link href={`/items/${shirt.id}`}>
                                   <div className="h-12 w-12 relative rounded overflow-hidden">
                                       {shirt.image ? (
                                         <Image
@@ -2316,150 +1958,108 @@ export default function CollectionPage() {
                                       />
                                     )}
                                   </div>
+                                  </Link>
                                 </td>
                               )}
-                                {visibleColumns.includes("name") && <td className="px-4 py-3 max-w-[180px]"><div className="font-medium truncate" title={shirt.name}>{shirt.name}</div><div className="text-xs text-muted-foreground line-clamp-1">{shirt.description}</div></td>}
-                                {visibleColumns.includes("licensing") && (
-                                  <td className="px-4 py-3">
-                                    <div className="flex flex-wrap gap-1">
-                                      {(typeof shirt.licensing === 'string' ? [shirt.licensing] : shirt.licensing).map((l, index) => (
-                                        <Badge key={index} variant="secondary" className="text-xs">
-                                          {l}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </td>
-                                )}
-                                {visibleColumns.includes("year") && <td className="px-4 py-3">{shirt.year}</td>}
-                                {visibleColumns.includes("size") && <td className="px-4 py-3">{shirt.size}</td>}
-                                {visibleColumns.includes("condition") && <td className="px-4 py-3"><Badge variant="outline">{shirt.condition}</Badge></td>}
-                                {visibleColumns.includes("listing_status") && <td className="px-4 py-3"><ListingStatusBadge status={shirt.listing_status} price={shirt.price} itemId={shirt.id} onStatusChange={handleListingStatusChange}/></td>}
-                                {visibleColumns.includes("tags") && <td className="px-4 py-3"><div className="grid grid-cols-2 gap-x-1 gap-y-1 w-[120px]">{shirt.tags.slice(0, 4).map((tag) => (<Badge key={tag} variant="secondary" className="text-xs whitespace-nowrap inline-flex justify-center">{tag}</Badge>))}{shirt.tags.length > 4 && (<TooltipProvider><Tooltip><TooltipTrigger asChild><Badge variant="secondary" className="text-xs whitespace-nowrap col-span-2 justify-center cursor-help">+{shirt.tags.length - 4}</Badge></TooltipTrigger><TooltipContent><div className="flex flex-col gap-1"><p className="font-semibold text-xs">Additional tags:</p>{shirt.tags.slice(4).map((tag) => (<span key={tag} className="text-xs">{tag}</span>))}</div></TooltipContent></Tooltip></TooltipProvider>)}</div></td>}
-                                {visibleColumns.includes("date_added") && <td className="px-4 py-3 text-muted-foreground text-xs">{new Date(shirt.date_added).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</td>}
-                                {visibleColumns.includes("estimated_value") && <td className="px-4 py-3 text-right font-medium">${shirt.estimated_value}</td>}
-                                {visibleColumns.includes("actions") && <td className="px-4 py-3 text-right"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={async () => {
-    try {
-      // Find the current t-shirt
-      const currentTshirt = tshirts.find(t => t.id === shirt.id);
-      if (!currentTshirt) return;
-      
-      // Skip if it already has no collections
-      if (currentTshirt.collections.length === 0) {
-        toast.info(`Already in All Shirts`);
-        return;
-      }
-      
-      const { error } = await supabase
-        .from('t_shirts')
-        .update({ collection_id: null })
-        .eq('id', shirt.id);
-
-      if (error) throw error;
-
-      // Update local state
-      setTshirts(prevTshirts =>
-        prevTshirts.map(t =>
-          t.id === shirt.id
-            ? { ...t, collection_id: null }
-            : t
-        )
-      );
-
-      toast.success(`Moved to All Shirts`);
-    } catch (error) {
-      console.error('Error moving shirt:', error);
-      toast.error('Failed to move shirt');
-    }
-  }}><Layers className="mr-2 h-4 w-4" /> All Shirts</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuSub>
-  <DropdownMenuSubTrigger>
-    <FolderIcon className="mr-2 h-4 w-4" />
-    Manage Collections
-  </DropdownMenuSubTrigger>
-  <DropdownMenuSubContent>
-    {userCollections.map((collection) => (
-      <DropdownMenuItem
-        key={collection.id}
-        onSelect={async () => {
-          try {
-            const isInCollection = shirt.collections.some(c => c.id === collection.id);
-            
-            if (isInCollection) {
-              // Remove from collection
-              const { error } = await supabase
-                .from('t_shirt_collections')
-                .delete()
-                .eq('t_shirt_id', shirt.id)
-                .eq('collection_id', collection.id);
-
-              if (error) throw error;
-
-              // Update local state
-              setTshirts(prevTshirts =>
-                prevTshirts.map(t =>
-                  t.id === shirt.id
-                    ? { ...t, collections: t.collections.filter(c => c.id !== collection.id) }
-                    : t
-                )
-              );
-
-              toast.success(`Removed from ${collection.name}`);
-            } else {
-              // Add to collection
-              const { error } = await supabase
-                .from('t_shirt_collections')
-                .insert({
-                  t_shirt_id: shirt.id,
-                  collection_id: collection.id
-                });
-
-              if (error) throw error;
-
-              // Update local state
-              setTshirts(prevTshirts =>
-                prevTshirts.map(t =>
-                  t.id === shirt.id
-                    ? { ...t, collections: [...t.collections, collection] }
-                    : t
-                )
-              );
-
-              toast.success(`Added to ${collection.name}`);
-            }
-          } catch (error) {
-            console.error('Error managing collections:', error);
-            toast.error('Failed to update collections');
-          }
-        }}
-      >
-        <div className="flex items-center">
-          <Checkbox 
-            checked={shirt.collections.some(c => c.id === collection.id)}
-            className="mr-2"
-          />
-          {collection.name}
-        </div>
-      </DropdownMenuItem>
-    ))}
-  </DropdownMenuSubContent>
-</DropdownMenuSub></DropdownMenuContent></DropdownMenu></td>}
-                                {visibleColumns.includes("collection") && (
+                              {visibleColumns.includes("name") && (
+                                <td className="px-4 py-3 max-w-[180px]">
+                                  <Link href={`/items/${shirt.id}`} className="hover:text-primary transition-colors">
+                                    <div className="font-medium truncate" title={shirt.name}>{shirt.name}</div>
+                                  <div className="text-xs text-muted-foreground line-clamp-1">{shirt.description}</div>
+                                  </Link>
+                                </td>
+                              )}
+                              {visibleColumns.includes("licensing") && (
                                 <td className="px-4 py-3">
-                                    <div className="flex flex-wrap gap-1">
-                                      {shirt.collections.length > 0 ? (
-                                        shirt.collections.map((collection) => (
-                                          <Badge 
-                                            key={collection.id} 
-                                            variant="outline" 
-                                            className="text-xs cursor-pointer hover:bg-accent"
-                                            onClick={() => setSelectedCollection(collection.id.toString())}
-                                          >
-                                            {collection.name}
+                                  {Array.isArray(shirt.licensing) ? shirt.licensing.join(', ') : shirt.licensing}
+                                </td>
+                              )}
+                              {visibleColumns.includes("year") && (
+                                <td className="px-4 py-3">{shirt.year}</td>
+                              )}
+                              {visibleColumns.includes("size") && (
+                                <td className="px-4 py-3">{shirt.size}</td>
+                              )}
+                              {visibleColumns.includes("condition") && (
+                                <td className="px-4 py-3">{shirt.condition}</td>
+                              )}
+                              {visibleColumns.includes("listing_status") && (
+                                <td className="px-4 py-3">
+                                  <ListingStatusBadge
+                                    status={shirt.listing_status}
+                                    price={shirt.price}
+                                    itemId={shirt.id}
+                                    onStatusChange={handleListingStatusChange}
+                                  />
+                                </td>
+                              )}
+                              {visibleColumns.includes("tags") && (
+                                <td className="px-4 py-3">
+                                  <div className="flex flex-wrap gap-1">
+                                    {shirt.tags.map((tag) => (
+                                      <Badge key={tag} variant="secondary" className="text-xs">
+                                        {tag}
                                       </Badge>
-                                        ))
-                                      ) : (
-                                        <span className="text-muted-foreground text-xs">All Shirts</span>
+                                    ))}
+                                  </div>
+                                </td>
+                              )}
+                              {visibleColumns.includes("date_added") && (
+                                <td className="px-4 py-3 text-sm text-muted-foreground">
+                                  {new Date(shirt.date_added).toLocaleDateString()}
+                                </td>
+                              )}
+                              {visibleColumns.includes("estimated_value") && (
+                                <td className="px-4 py-3">
+                                  {shirt.estimated_value ? `$${shirt.estimated_value.toFixed(2)}` : '-'}
+                                </td>
+                              )}
+                              {visibleColumns.includes("collection") && (
+                                <td className="px-4 py-3">
+                                  <div className="flex flex-wrap gap-1">
+                                    {shirt.collections.length > 0 ? (
+                                      shirt.collections.map((collection) => (
+                                        <Badge 
+                                          key={collection.id} 
+                                          variant="outline" 
+                                          className="text-xs cursor-pointer hover:bg-accent"
+                                          onClick={() => setSelectedCollection(collection.id.toString())}
+                                        >
+                                          {collection.name}
+                                        </Badge>
+                                      ))
+                                    ) : (
+                                      <span className="text-muted-foreground text-xs">All Shirts</span>
                                     )}
                                   </div>
+                                </td>
+                              )}
+                              {visibleColumns.includes("actions") && (
+                                <td className="px-4 py-3">
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                        <span className="sr-only">Actions</span>
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => {
+                                        setSelectedTshirt(shirt);
+                                        setSelectedCollectionId(shirt.collections[0]?.id.toString() || "none");
+                                        setIsChangeCollectionOpen(true);
+                                      }}>
+                                        <FolderPlus className="h-4 w-4 mr-2" />
+                                        Move to Collection
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem asChild>
+                                        <Link href={`/items/${shirt.id}`}>
+                                          <Eye className="h-4 w-4 mr-2" />
+                                          View Details
+                                        </Link>
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </td>
                               )}
                             </tr>
@@ -2480,389 +2080,11 @@ export default function CollectionPage() {
                 </Button>
               </div>
             )}
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Create New Collection Dialog */}
-      <Dialog open={isNewCollectionOpen} onOpenChange={(open) => {
-        setIsNewCollectionOpen(open)
-        if (!open) {
-          setFormKey(prev => prev + 1)
-          setNewCollectionName("")
-          setNewCollectionTags([])
-        }
-      }}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Create New Collection</DialogTitle>
-            <DialogDescription>
-              Create a custom collection to organize your t-shirts.
-            </DialogDescription>
-          </DialogHeader>
-          <form key={`collection-form-${formKey}`} onSubmit={(e) => {
-            e.preventDefault()
-            handleCreateCollection()
-          }}>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="collection-name">Collection Name*</Label>
-                <Input
-                  id="collection-name"
-                  value={newCollectionName}
-                  onChange={(e) => setNewCollectionName(e.target.value)}
-                  placeholder="e.g., Vintage Rock Tees"
-                  required
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={!newCollectionName}>
-                Create Collection
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Column Customization Dialog */}
-      <Dialog open={isColumnCustomizationOpen} onOpenChange={setIsColumnCustomizationOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Customize Columns</DialogTitle>
-            <DialogDescription>Select which columns to display in the table view.</DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="space-y-4">
-              {availableColumns.map((column) => (
-                <div key={column.id} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`column-${column.id}`}
-                      checked={visibleColumns.includes(column.id)}
-                      onCheckedChange={() => toggleColumnVisibility(column.id)}
-                      disabled={column.id === "actions"} // Always keep actions column
-                    />
-                    <label
-                      htmlFor={`column-${column.id}`}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      {column.name}
-                    </label>
-                  </div>
-                  {column.sortable && (
-                    <Badge variant="outline" className="text-xs">
-                      Sortable
-                    </Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={resetColumnVisibility}>
-              Reset to Default
-            </Button>
-            <Button onClick={() => setIsColumnCustomizationOpen(false)}>Apply</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Quick Add Dialog */}
-      <Dialog open={isQuickAddOpen} onOpenChange={setIsQuickAddOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Quick Add Items</DialogTitle>
-            <DialogDescription>
-              Quickly add items to your collection with minimal information.
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="flex-grow pr-4 max-h-[60vh] overflow-y-auto">
-            <form id="quick-add-form" onSubmit={handleQuickAdd}>
-              <div className="grid gap-4 py-4">
-                {formItems.map((item, index) => (
-                  <div key={item.id} className="border rounded-md p-4 relative">
-                    {index > 0 && (
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="icon" 
-                        className="absolute top-2 right-2 h-6 w-6"
-                        onClick={() => {
-                          setFormItems(prev => prev.filter((_, i) => i !== index));
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                    
-                    <div className="grid gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor={`item-${item.id}-name`}>Item Name*</Label>
-                        <Input
-                          id={`item-${item.id}-name`}
-                          name={`item-${item.id}-name`}
-                          placeholder="e.g., Metallica 'Black Album' Tour Tee"
-                          required={index < formItems.length - 1} // Only required for all but the last item
-                          autoFocus={index === 0}
-                          onChange={(e) => {
-                            const newItems = [...formItems];
-                            newItems[index].values.name = e.target.value;
-                            setFormItems(newItems);
-                          }}
-                        />
-                      </div>
-                      
-                      <div className="grid gap-2">
-                        <Label htmlFor={`item-${item.id}-listing-status`}>Listing Status*</Label>
-                        <select
-                          id={`item-${item.id}-listing-status`}
-                          name={`item-${item.id}-listing-status`}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          defaultValue="Public"
-                          required
-                          onChange={(e) => {
-                            const statusSelect = e.target;
-                            const newItems = [...formItems];
-                            newItems[index].values.listing_status = statusSelect.value;
-                            setFormItems(newItems);
-                          }}
-                        >
-                          <option value="Public">Not For Sale</option>
-                          <option value="Private">Private</option>
-                          <option value="For Sale">For Sale</option>
-                          <option value="Taking Offers">Taking Offers</option>
-                        </select>
-                      </div>
-                      
-                      <div className="grid gap-2">
-                        <Label htmlFor={`item-${item.id}-collection`}>Collection</Label>
-                        <select
-                          id={`item-${item.id}-collection`}
-                          name={`item-${item.id}-collection`}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          defaultValue={selectedCollection !== "all" ? selectedCollection : ""}
-                          onChange={(e) => {
-                            const collectionSelect = e.target;
-                            const newItems = [...formItems];
-                            newItems[index].values.collection_id = collectionSelect.value;
-                            setFormItems(newItems);
-                          }}
-                        >
-                          <option value="">All Shirts</option>
-                          {userCollections.map((collection) => (
-                            <option key={collection.id} value={collection.id.toString()}>
-                              {collection.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      {/* Image Upload */}
-                      <div className="grid gap-2">
-                        <Label>Item Image</Label>
-                        <ImageUploader
-                          onImageUpload={(url, file) => {
-                            const newItems = [...formItems];
-                            newItems[index].imageFile = file;
-                            newItems[index].imageUrl = url;
-                            setFormItems(newItems);
-                          }}
-                          className="w-full"
-                        />
-                      </div>
-                      
-                      {optionalFields.licensing && (
-                        <div className="grid gap-2">
-                          <Label htmlFor={`item-${item.id}-licensing`} className="text-sm">Licensing</Label>  
-                          <Input
-                            id={`item-${item.id}-licensing`}  
-                            name={`item-${item.id}-licensing`}  
-                            placeholder="e.g., Metallica, Harley Davidson"
-                          />
-                        </div>
-                      )}
-                      
-                      {optionalFields.year && (
-                        <div className="grid gap-2">
-                          <Label htmlFor={`item-${item.id}-year`}>Year</Label>
-                          <Input
-                            id={`item-${item.id}-year`}
-                            name={`item-${item.id}-year`}
-                            type="number"
-                            placeholder="e.g., 1992"
-                          />
-                        </div>
-                      )}
-                      
-                      {optionalFields.condition && (
-                        <div className="grid gap-2">
-                          <Label htmlFor={`item-${item.id}-condition`}>Condition</Label>
-                          <select
-                            id={`item-${item.id}-condition`}
-                            name={`item-${item.id}-condition`}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <option value="">Select condition</option>
-                            <option value="Mint">Mint</option>
-                            <option value="Excellent">Excellent</option>
-                            <option value="Very Good">Very Good</option>
-                            <option value="Good">Good</option>
-                            <option value="Fair">Fair</option>
-                            <option value="Poor">Poor</option>
-                          </select>
-                        </div>
-                      )}
-                      
-                      {optionalFields.size && (
-                        <div className="grid gap-2">
-                          <Label htmlFor={`item-${item.id}-size`}>Size</Label>
-                          <select
-                            id={`item-${item.id}-size`}
-                            name={`item-${item.id}-size`}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <option value="">Select size</option>
-                            <option value="XS">XS</option>
-                            <option value="S">S</option>
-                            <option value="M">M</option>
-                            <option value="L">L</option>
-                            <option value="XL">XL</option>
-                            <option value="XXL">XXL</option>
-                            <option value="XXXL">XXXL</option>
-                          </select>
-                        </div>
-                      )}
-                      
-                      {optionalFields.value && (
-                        <div className="grid gap-2">
-                          <Label htmlFor={`item-${item.id}-value`}>Estimated Value ($)</Label>
-                          <Input
-                            id={`item-${item.id}-value`}
-                            name={`item-${item.id}-value`}
-                            type="number"
-                            placeholder="e.g., 150"
-                          />
-                        </div>
-                      )}
-                      
-                      {optionalFields.tags && (
-                        <div className="grid gap-2">
-                          <Label htmlFor={`item-${item.id}-tags`}>Tags</Label>
-                          <Input
-                            id={`item-${item.id}-tags`}
-                            name={`item-${item.id}-tags`}
-                            placeholder="e.g., rock, vintage, tour"
-                          />
-                        </div>
-                      )}
-
-                      {/* Optional field buttons */}
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {!optionalFields.licensing && (
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => toggleOptionalField("licensing")} 
-                            className="text-xs py-1"
-                          >
-                            + Licensing
-                          </Button>
-                        )}
-                        
-                        {!optionalFields.year && (
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => toggleOptionalField("year")} 
-                            className="text-xs py-1"
-                          >
-                            + Year
-                          </Button>
-                        )}
-                        
-                        {!optionalFields.condition && (
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => toggleOptionalField("condition")} 
-                            className="text-xs py-1"
-                          >
-                            + Condition
-                          </Button>
-                        )}
-                        
-                        {!optionalFields.size && (
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => toggleOptionalField("size")} 
-                            className="text-xs py-1"
-                          >
-                            + Size
-                          </Button>
-                        )}
-                        
-                        {!optionalFields.value && (
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => toggleOptionalField("value")} 
-                            className="text-xs py-1"
-                          >
-                            + Estimated Value
-                          </Button>
-                        )}
-                        
-                        {!optionalFields.tags && (
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => toggleOptionalField("tags")} 
-                            className="text-xs py-1"
-                          >
-                            + Tags
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </form>
-          </ScrollArea>
-          <div className="flex justify-between items-center pt-4 border-t mt-4">
-            <Button type="button" variant="outline" onClick={() => {
-              setFormItems(prev => [...prev, { id: Date.now().toString(), values: {}, imageFile: null, imageUrl: "" }]);
-            }}>
-              + Add Another Item
-            </Button>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsQuickAddOpen(false)}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={() => {
-                  const form = document.getElementById("quick-add-form") as HTMLFormElement;
-                  if (form) form.requestSubmit();
-                }} 
-                disabled={isLoading}
-              >
-                {isLoading ? "Adding..." : "Save All Items"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Item Dialog */}
+      {/* Dialogs */}
       <Dialog open={isAddItemOpen} onOpenChange={(open) => {
         setIsAddItemOpen(open);
         if (!open) {
@@ -3127,7 +2349,6 @@ export default function CollectionPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Change Collection Dialog */}
       <Dialog open={isChangeCollectionOpen} onOpenChange={setIsChangeCollectionOpen}>
         <DialogContent>
           <DialogHeader>
@@ -3159,4 +2380,5 @@ export default function CollectionPage() {
     </div>
   )
 }
+
 
