@@ -15,7 +15,7 @@ import { Cog } from "lucide-react"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
-import { XCircleIcon } from "@heroicons/react/24/outline"
+import { XCircleIcon } from '@heroicons/react/24/outline'
 
 // Ensure we have the correct URL format
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
