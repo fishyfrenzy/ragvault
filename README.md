@@ -7,7 +7,7 @@
 ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝   
                                                                  
 
-About Ragvault
+
 RAGVAULT is the ultimate vault for t-shirt collectors—a community-driven, wiki-style database inspired by Discogs. Our platform lets you:
 
 Discover a detailed archive of iconic tees.
