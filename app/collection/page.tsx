@@ -554,6 +554,7 @@ export default function CollectionPage() {
     description: boolean
     listing_status: boolean
     price: boolean
+    collection: boolean
   }>({
     licensing: false,  // Changed from 'Licensing' to 'brand' to match database column
     year: false,
@@ -563,7 +564,8 @@ export default function CollectionPage() {
     tags: false,
     description: false,
     listing_status: false,
-    price: false
+    price: false,
+    collection: false
   })
 
   // Toggle optional field visibility
@@ -584,6 +586,30 @@ export default function CollectionPage() {
   const [isChangeCollectionOpen, setIsChangeCollectionOpen] = useState(false)
   const [selectedTshirt, setSelectedTshirt] = useState<TShirt | null>(null)
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>("none")
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({
+    name: true,
+    licensing: true,
+    year: true,
+    condition: true,
+    size: true,
+    estimatedValue: true,
+    dateAdded: true,
+    listingStatus: true
+  })
+  
+  // Available tags for collections
+  const availableTags = useMemo(() => [
+    "Vintage", "Concert", "Band", "Sports", "Movie", "TV Show", "Gaming", "Limited Edition"
+  ], [])
+
+  // Toggle a tag for the new collection
+  const toggleCollectionTag = (tag: string) => {
+    if (newCollectionTags.includes(tag)) {
+      setNewCollectionTags(newCollectionTags.filter((t) => t !== tag))
+    } else {
+      setNewCollectionTags([...newCollectionTags, tag])
+    }
+  }
 
   // Initialize collections
   useEffect(() => {
@@ -1323,7 +1349,8 @@ export default function CollectionPage() {
         tags: false,
         description: false,
         listing_status: false,
-        price: false
+        price: false,
+        collection: false
       });
       // Clear image state
       setItemImage("");
@@ -1650,7 +1677,7 @@ export default function CollectionPage() {
                         className="mr-2"
                         onCheckedChange={() => toggleFilter("licensing", brand)}  // Changed from "brand" to "licensing"
                       />
-                      {brand}  // Changed from brand to licensing
+                      {brand} 
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
@@ -1767,6 +1794,15 @@ export default function CollectionPage() {
                 >
                   <Settings className="h-3.5 w-3.5" />
                   Customize Columns
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsQuickAddOpen(true)}
+                  className="flex items-center gap-1"
+                >
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  Quick Add
                 </Button>
               </div>
               <div className="text-sm text-muted-foreground">
@@ -2075,9 +2111,9 @@ export default function CollectionPage() {
                 <div className="mb-4 text-lg text-muted-foreground">
                   Hmmm, looks like your collection is empty!
                 </div>
-                <Button onClick={() => setIsQuickAddOpen(true)}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Quick Add
-                </Button>
+                <div className="text-sm text-muted-foreground">
+                  Click the Quick Add button above to add your first item.
+                </div>
               </div>
             )}
           </div>
@@ -2375,6 +2411,464 @@ export default function CollectionPage() {
               </SelectContent>
             </Select>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Dialog */}
+      <Dialog open={isQuickAddOpen} onOpenChange={setIsQuickAddOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Quick Add Items</DialogTitle>
+            <DialogDescription>
+              Quickly add multiple items to your collection
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-grow pr-4 max-h-[70vh] overflow-y-auto">
+            <form onSubmit={handleQuickAdd}>
+              <div className="space-y-6 py-4">
+                {formItems.map((item, index) => (
+                  <div key={item.id}>
+                    <div className="grid gap-4">
+                      {/* Required Fields */}
+                      <div className="grid gap-2">
+                        <Label htmlFor={`item-${item.id}-name`}>Item Name*</Label>
+                        <Input
+                          id={`item-${item.id}-name`}
+                          placeholder="e.g., Metallica 'Black Album' Tour Tee"
+                          required
+                        />
+                      </div>
+
+                      {/* Image Upload */}
+                      <div className="grid gap-2">
+                        <Label>Item Image</Label>
+                        <ImageUploader
+                          onImageUpload={(imageUrl, file) => {
+                            // Update the formItem with the image data
+                            setFormItems(prev => prev.map(formItem => 
+                              formItem.id === item.id 
+                                ? { ...formItem, imageUrl, imageFile: file }
+                                : formItem
+                            ));
+                          }}
+                          defaultImage={item.imageUrl}
+                          className="h-[200px]"
+                        />
+                      </div>
+
+                      <div className="grid gap-2">
+                        <Label htmlFor={`item-${item.id}-listing-status`}>Status*</Label>
+                        <select
+                          id={`item-${item.id}-listing-status`}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                          required
+                        >
+                          <option value="Public">Not For Sale</option>
+                          <option value="Private">Private</option>
+                          <option value="For Sale">For Sale</option>
+                          <option value="Taking Offers">Taking Offers</option>
+                        </select>
+                      </div>
+
+                      {/* Optional Fields */}
+                      {optionalFields.collection && (
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-center">
+                            <Label htmlFor={`item-${item.id}-collection`}>Collection</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleOptionalField("collection")}
+                              className="h-6 w-6 p-0 hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <select
+                            id={`item-${item.id}-collection`}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                          >
+                            <option value="">None</option>
+                            {userCollections.map((collection) => (
+                              <option key={collection.id} value={collection.id}>
+                                {collection.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {optionalFields.condition && (
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-center">
+                            <Label htmlFor={`item-${item.id}-condition`}>Condition</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleOptionalField("condition")}
+                              className="h-6 w-6 p-0 hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <select
+                            id={`item-${item.id}-condition`}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                          >
+                            <option value="">Select condition</option>
+                            <option value="Mint">Mint</option>
+                            <option value="Excellent">Excellent</option>
+                            <option value="Good">Good</option>
+                            <option value="Fair">Fair</option>
+                            <option value="Poor">Poor</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {optionalFields.size && (
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-center">
+                            <Label htmlFor={`item-${item.id}-size`}>Size</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleOptionalField("size")}
+                              className="h-6 w-6 p-0 hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <select
+                            id={`item-${item.id}-size`}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                          >
+                            <option value="">Select size</option>
+                            <option value="XS">XS</option>
+                            <option value="S">S</option>
+                            <option value="M">M</option>
+                            <option value="L">L</option>
+                            <option value="XL">XL</option>
+                            <option value="XXL">XXL</option>
+                            <option value="XXXL">XXXL</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {optionalFields.year && (
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-center">
+                            <Label htmlFor={`item-${item.id}-year`}>Year</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleOptionalField("year")}
+                              className="h-6 w-6 p-0 hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <Input
+                            id={`item-${item.id}-year`}
+                            type="number"
+                            placeholder="e.g., 1991"
+                          />
+                        </div>
+                      )}
+
+                      {optionalFields.value && (
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-center">
+                            <Label htmlFor={`item-${item.id}-value`}>Value ($)</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleOptionalField("value")}
+                              className="h-6 w-6 p-0 hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <Input
+                            id={`item-${item.id}-value`}
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      )}
+
+                      {optionalFields.licensing && (
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-center">
+                            <Label htmlFor={`item-${item.id}-licensing`}>Licensing (comma separated)</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleOptionalField("licensing")}
+                              className="h-6 w-6 p-0 hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <Input
+                            id={`item-${item.id}-licensing`}
+                            placeholder="e.g., Metallica, Harley Davidson"
+                          />
+                        </div>
+                      )}
+
+                      {optionalFields.tags && (
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-center">
+                            <Label htmlFor={`item-${item.id}-tags`}>Tags (comma separated)</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleOptionalField("tags")}
+                              className="h-6 w-6 p-0 hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <Input
+                            id={`item-${item.id}-tags`}
+                            placeholder="e.g., vintage, 90s, rock, concert"
+                          />
+                        </div>
+                      )}
+
+                      {optionalFields.description && (
+                        <div className="grid gap-2">
+                          <div className="flex justify-between items-center">
+                            <Label htmlFor={`item-${item.id}-description`}>Description</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleOptionalField("description")}
+                              className="h-6 w-6 p-0 hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <Textarea
+                            id={`item-${item.id}-description`}
+                            placeholder="Enter description here..."
+                          />
+                        </div>
+                      )}
+
+                      {/* Optional Field Buttons */}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {!optionalFields.collection && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => toggleOptionalField("collection")} 
+                            className="text-xs py-1"
+                          >
+                            + Collection
+                          </Button>
+                        )}
+                        {!optionalFields.licensing && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => toggleOptionalField("licensing")} 
+                            className="text-xs py-1"
+                          >
+                            + Licensing
+                          </Button>
+                        )}
+                        {!optionalFields.year && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => toggleOptionalField("year")} 
+                            className="text-xs py-1"
+                          >
+                            + Year
+                          </Button>
+                        )}
+                        {!optionalFields.condition && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => toggleOptionalField("condition")} 
+                            className="text-xs py-1"
+                          >
+                            + Condition
+                          </Button>
+                        )}
+                        {!optionalFields.size && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => toggleOptionalField("size")} 
+                            className="text-xs py-1"
+                          >
+                            + Size
+                          </Button>
+                        )}
+                        {!optionalFields.value && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => toggleOptionalField("value")} 
+                            className="text-xs py-1"
+                          >
+                            + Value
+                          </Button>
+                        )}
+                        {!optionalFields.tags && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => toggleOptionalField("tags")} 
+                            className="text-xs py-1"
+                          >
+                            + Tags
+                          </Button>
+                        )}
+                        {!optionalFields.description && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => toggleOptionalField("description")} 
+                            className="text-xs py-1"
+                          >
+                            + Description
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {index < formItems.length - 1 && (
+                      <div className="relative mt-6">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-background px-2 text-muted-foreground">Item {index + 2}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <DialogFooter>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setFormItems(prev => [...prev, { id: Date.now().toString(), values: {}, imageFile: null, imageUrl: "" }])}
+                  >
+                    Add Another Item
+                  </Button>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? "Adding..." : "Add Items"}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </form>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Collection Dialog */}
+      <Dialog open={isNewCollectionOpen} onOpenChange={setIsNewCollectionOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Collection</DialogTitle>
+            <DialogDescription>
+              Create a new collection to organize your items
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="collection-name">Collection Name*</Label>
+              <Input
+                id="collection-name"
+                value={newCollectionName}
+                onChange={(e) => setNewCollectionName(e.target.value)}
+                placeholder="Enter collection name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Tags</Label>
+              <div className="flex flex-wrap gap-2">
+                {availableTags.map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant={newCollectionTags.includes(tag) ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => toggleCollectionTag(tag)}
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsNewCollectionOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateCollection} disabled={isLoading}>
+              {isLoading ? "Creating..." : "Create Collection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Customize Columns Dialog */}
+      <Dialog open={isColumnCustomizationOpen} onOpenChange={setIsColumnCustomizationOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Customize Columns</DialogTitle>
+            <DialogDescription>
+              Choose which columns to display in the list view
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {Object.entries(columnVisibility).map(([key, visible]) => (
+              <div key={key} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`column-${key}`}
+                  checked={visible}
+                  onCheckedChange={(checked) => {
+                    setColumnVisibility(prev => ({
+                      ...prev,
+                      [key]: checked === true
+                    }));
+                  }}
+                />
+                <Label htmlFor={`column-${key}`}>
+                  {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
+                </Label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsColumnCustomizationOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

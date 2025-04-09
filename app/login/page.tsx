@@ -197,6 +197,7 @@ function LoginContent() {
             console.error('Error resending confirmation:', resendError)
           }
         } else if (error.message.includes('rate limit')) {
+          console.error('Rate limit error:', error)
           const cooldownTime = Math.min(300000, Math.pow(2, newAttemptCount - 4) * 60000)
           const newCooldownEnd = now + cooldownTime
           setCooldownEnd(newCooldownEnd)
@@ -223,8 +224,12 @@ function LoginContent() {
         toast.error('Failed to establish session')
       }
     } catch (error) {
-      console.error('Sign in error:', error)
-      toast.error('An unexpected error occurred')
+      console.error('Unexpected sign in error:', error)
+      if (error instanceof Error) {
+        toast.error(`An unexpected error occurred: ${error.message}`)
+      } else {
+        toast.error('An unexpected error occurred')
+      }
     } finally {
       setIsLoading(false)
     }
