@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Cog } from "lucide-react"
+import { Cog, Check } from "lucide-react"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
@@ -28,14 +28,20 @@ function LoginContent() {
   const [lastAttempt, setLastAttempt] = useState<number>(0)
   const [attemptCount, setAttemptCount] = useState(0)
   const [cooldownEnd, setCooldownEnd] = useState<number>(0)
+  const [isMounted, setIsMounted] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClientComponentClient()
   const redirectTo = searchParams.get('redirectTo') || '/collection'
   const error = searchParams.get('error')
 
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
   // Load attempt count from localStorage on mount
   useEffect(() => {
+    if (!isMounted) return
     const storedAttemptCount = localStorage.getItem('loginAttemptCount')
     const storedLastAttempt = localStorage.getItem('lastLoginAttempt')
     const storedCooldownEnd = localStorage.getItem('loginCooldownEnd')
@@ -57,10 +63,11 @@ function LoginContent() {
         }
       }
     }
-  }, [])
+  }, [isMounted])
 
   // Check if we're in cooldown
   useEffect(() => {
+    if (!isMounted) return
     if (cooldownEnd > 0) {
       const now = Date.now()
       if (now >= cooldownEnd) {
@@ -68,18 +75,20 @@ function LoginContent() {
         localStorage.removeItem('loginCooldownEnd')
       }
     }
-  }, [cooldownEnd])
+  }, [cooldownEnd, isMounted])
 
   // Log Supabase configuration
   useEffect(() => {
+    if (!isMounted) return
     console.log('Supabase Configuration:', {
       url: process.env.NEXT_PUBLIC_SUPABASE_URL,
       hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     })
-  }, [])
+  }, [isMounted])
 
   // Check for error params
   useEffect(() => {
+    if (!isMounted) return
     if (error) {
       console.log('URL error param:', error)
       if (error === 'auth_callback_failed') {
@@ -88,10 +97,11 @@ function LoginContent() {
         toast.error('Session error. Please sign in again.')
       }
     }
-  }, [error])
+  }, [error, isMounted])
 
   // Check if user is already logged in
   useEffect(() => {
+    if (!isMounted) return
     let mounted = true
     const checkSession = async () => {
       if (!mounted) return
@@ -120,7 +130,7 @@ function LoginContent() {
     return () => {
       mounted = false
     }
-  }, [router, supabase, redirectTo])
+  }, [router, supabase, redirectTo, isMounted])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -256,24 +266,32 @@ function LoginContent() {
     }
   }
 
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight">
-          Sign in to your account
-        </h2>
+  if (!isMounted) {
+    // Return the same fallback as the Suspense boundary
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-gray-900 dark:border-white"></div>
       </div>
+    );
+  }
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white px-4 py-8 shadow sm:rounded-lg sm:px-10">
+  return (
+    <div className="container flex h-screen w-screen flex-col items-center justify-center">
+      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
+        <div className="flex flex-col space-y-2 text-center">
+          <Cog className="mx-auto h-6 w-6" />
+          <h1 className="text-2xl font-semibold tracking-tight">Sign in to your account</h1>
+          <p className="text-sm text-muted-foreground">Enter your email below to sign in</p>
+        </div>
+        <Card>
           {error && (
-            <div className="mb-4 rounded-md bg-red-50 p-4">
+            <div className="mb-4 rounded-md bg-red-50 p-4 dark:bg-red-900/20 dark:border dark:border-red-500/30">
               <div className="flex">
                 <div className="flex-shrink-0">
                   <XCircleIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
                 </div>
                 <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">
+                  <h3 className="text-sm font-medium text-red-800 dark:text-red-300">
                     {error === 'OAuthSignin' && 'Error signing in with OAuth provider'}
                     {error === 'OAuthCallback' && 'Error during OAuth callback'}
                     {error === 'OAuthCreateAccount' && 'Error creating OAuth account'}
@@ -303,7 +321,7 @@ function LoginContent() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Checkbox id="remember" name="remember" />
-                    <Label htmlFor="remember" className="text-sm">Remember me</Label>
+                    <Label htmlFor="remember" className="text-sm font-normal">Remember me</Label>
                   </div>
                   <Link href="/forgot-password" className="text-sm text-primary hover:underline">
                     Forgot password?
@@ -339,7 +357,7 @@ function LoginContent() {
               </p>
             </CardFooter>
           </form>
-        </div>
+        </Card>
       </div>
     </div>
   )
