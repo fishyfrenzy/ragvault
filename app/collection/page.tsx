@@ -40,6 +40,7 @@ import {
   Folder,
   Trash2,
   FolderIcon,
+  Download,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -1889,6 +1890,94 @@ export default function CollectionPage() {
               </div>
             )}
 
+            {/* Bulk Actions Bar - Only shows when items are selected */}
+            {selectedItems.length > 0 && (
+              <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 z-50 shadow-lg">
+                <div className="container mx-auto flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">
+                      {selectedItems.length} item{selectedItems.length !== 1 ? "s" : ""} selected
+                    </span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setSelectedItems([])}
+                      className="text-muted-foreground"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="flex items-center gap-1">
+                          <FolderPlus className="h-4 w-4" />
+                          Move to Collection
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleBulkCollectionMove(null)}>
+                          Remove from Collection
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {userCollections.map((collection) => (
+                          <DropdownMenuItem 
+                            key={collection.id} 
+                            onClick={() => handleBulkCollectionMove(collection.id.toString())}
+                          >
+                            {collection.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="flex items-center gap-1">
+                          <Tag className="h-4 w-4" />
+                          Change Status
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleBulkStatusChange("Public")}>
+                          Not For Sale
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleBulkStatusChange("Private")}>
+                          Private
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleBulkStatusChange("For Sale")}>
+                          For Sale
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleBulkStatusChange("Taking Offers")}>
+                          Taking Offers
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={exportToCSV} 
+                      className="flex items-center gap-1"
+                    >
+                      <Download className="h-4 w-4" />
+                      Export
+                    </Button>
+                    
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      onClick={handleBulkDelete}
+                      className="flex items-center gap-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* T-shirt grid/list */}
             {sortedTshirts.length > 0 ? (
               <>
@@ -2846,25 +2935,29 @@ export default function CollectionPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {Object.entries(columnVisibility).map(([key, visible]) => (
-              <div key={key} className="flex items-center space-x-2">
+            {availableColumns.map((column) => (
+              <div key={column.id} className="flex items-center space-x-2">
                 <Checkbox
-                  id={`column-${key}`}
-                  checked={visible}
+                  id={`column-${column.id}`}
+                  checked={visibleColumns.includes(column.id)}
                   onCheckedChange={(checked) => {
-                    setColumnVisibility(prev => ({
-                      ...prev,
-                      [key]: checked === true
-                    }));
+                    if (checked) {
+                      setVisibleColumns(prev => [...prev, column.id])
+                    } else {
+                      // Don't allow removing all columns
+                      if (visibleColumns.length === 1) return
+                      setVisibleColumns(prev => prev.filter(id => id !== column.id))
+                    }
                   }}
                 />
-                <Label htmlFor={`column-${key}`}>
-                  {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
+                <Label htmlFor={`column-${column.id}`}>
+                  {column.name}
                 </Label>
               </div>
             ))}
           </div>
           <DialogFooter>
+            <Button variant="outline" onClick={resetColumnVisibility}>Reset to Default</Button>
             <Button variant="outline" onClick={() => setIsColumnCustomizationOpen(false)}>
               Close
             </Button>

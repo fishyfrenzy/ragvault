@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 const DevMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
-  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const supabase = createClientComponentClient();
 
   const toggleMenu = () => {
@@ -56,14 +55,6 @@ const DevMenu = () => {
         <div className="absolute bottom-12 right-0 p-4 bg-gray-800 text-white w-64 rounded-lg shadow-lg">
           <h2 className="text-xl font-bold mb-4">Dev Menu</h2>
           <ul className="space-y-2">
-            <li>
-              <button 
-                onClick={() => setIsQuickAddOpen(true)}
-                className="w-full text-left hover:text-gray-300"
-              >
-                Quick Add Item
-              </button>
-            </li>
             <li><Link href="/collection" className="hover:text-gray-300">Collection</Link></li>
             <li><Link href="/vault" className="hover:text-gray-300">Vault</Link></li>
             <li><Link href="/profile" className="hover:text-gray-300">Profile</Link></li>
